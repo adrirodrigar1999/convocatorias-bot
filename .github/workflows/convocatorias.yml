@@ -9,6 +9,10 @@ on:
         description: "Fecha concreta AAAA-MM-DD (vacío = días pendientes)"
         required: false
         default: ""
+      desde:
+        description: "Revisar desde esta fecha AAAA-MM-DD hasta hoy (en vez de una sola fecha)"
+        required: false
+        default: ""
       dry_run:
         description: "Solo mostrar en el log, sin enviar ni guardar"
         type: boolean
@@ -53,9 +57,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           FECHA: ${{ inputs.fecha }}
+          DESDE: ${{ inputs.desde }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           ARGS=""
           if [ -n "$FECHA" ]; then ARGS="$ARGS --fecha $FECHA"; fi
+          if [ -n "$DESDE" ]; then ARGS="$ARGS --desde $DESDE"; fi
           if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           python -m bot.main $ARGS
