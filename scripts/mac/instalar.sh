@@ -32,6 +32,12 @@ echo "Usando $PY"
 .venv/bin/pip install -q --upgrade pip
 .venv/bin/pip install -q -r requirements.txt
 mkdir -p data logs
+touch .venv/.instalado
+
+if [[ "${1:-}" == "--reset" ]]; then
+  echo "Borrando los avisos anteriores del chat y el estado del bot…"
+  .venv/bin/python -m bot.main --reset --si
+fi
 
 PLIST="$HOME/Library/LaunchAgents/com.convocatorias-bot.plist"
 mkdir -p "$HOME/Library/LaunchAgents"
@@ -39,6 +45,7 @@ sed "s#__DIR__#$DIR#g" scripts/mac/com.convocatorias-bot.plist > "$PLIST"
 launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 
-echo "✅ Instalado. Comprobará cada hora (y al iniciar sesión) si ha pasado un lunes o jueves desde la última revisión."
+echo "✅ Instalado. La primera revisión ya está en marcha (mira logs/bot.log)."
+echo "   A partir de ahora: Comprobará cada hora (y al iniciar sesión) si ha pasado un lunes o jueves desde la última revisión."
 echo "   Registro: $DIR/logs/bot.log"
 echo "   Prueba de Telegram:  .venv/bin/python -m bot.main --prueba-telegram"
