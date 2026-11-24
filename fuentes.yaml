@@ -8,6 +8,7 @@
 #   informatica: true  -> todo lo que publica cuenta como informática (p. ej. INCIBE)
 #   verificada: true   -> URL comprobada a mano; el resto se valida con --probar-fuentes
 #   activa: false      -> desactivarla sin borrarla
+#   verificar_ssl: false -> solo para webs públicas con el certificado mal instalado
 #
 # Para añadir una fuente basta con copiar un bloque. Si una deja de funcionar, el bot avisa.
 
@@ -15,7 +16,7 @@
 - {id: bopa, nombre: BOPA (Asturias), tipo: boletin, region: Asturias, url: "https://miprincipado.asturias.es/bopa", verificada: true}
 - {id: boc-cantabria, nombre: BOC (Cantabria), tipo: boletin, region: Cantabria, url: "https://boc.cantabria.es/boces/", verificada: true}
 - {id: bocyl, nombre: BOCYL (Castilla y León), tipo: boletin, region: Castilla y León, url: "https://bocyl.jcyl.es/", verificada: true}
-- {id: bocyl-datos, nombre: BOCYL datos abiertos, tipo: boletin, region: Castilla y León, url: "https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/bocyl/1284948181134.csv", verificada: true}
+- {id: bocyl-datos, nombre: BOCYL datos abiertos, tipo: boletin, region: Castilla y León, url: "https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/bocyl/1284948181134.csv", verificada: true, verificar_ssl: false}
 - {id: boja, nombre: BOJA (Andalucía), tipo: boletin, url: "https://www.juntadeandalucia.es/eboja.html"}
 - {id: boa, nombre: BOA (Aragón), tipo: boletin, url: "https://www.boa.aragon.es/"}
 - {id: boib, nombre: BOIB (Baleares), tipo: boletin, url: "https://www.caib.es/eboibfront/es"}
@@ -37,19 +38,19 @@
 - {id: bop-avila, nombre: BOP Ávila, tipo: boletin, region: Castilla y León, url: "https://www.diputacionavila.es/boletin-oficial/{yyyy}/{dd}-{mm}-{yyyy}.html", verificada: true}
 - {id: bop-burgos, nombre: BOP Burgos, tipo: boletin, region: Castilla y León, url: "https://bopbur.diputaciondeburgos.es/"}
 - {id: bop-leon, nombre: BOP León, tipo: boletin, region: Castilla y León, url: "https://bop.dipuleon.es/", verificada: true}
-- {id: bop-palencia, nombre: BOP Palencia, tipo: boletin, region: Castilla y León, url: "https://www.diputaciondepalencia.es/bop"}
+- {id: bop-palencia, nombre: BOP Palencia, tipo: boletin, region: Castilla y León, url: "https://www.diputaciondepalencia.es/", seguir: "bolet[ií]n oficial|\\bbop\\b"}
 - {id: bop-salamanca, nombre: BOP Salamanca, tipo: boletin, region: Castilla y León, url: "https://bop.dipsanet.es/"}
 - {id: bop-segovia, nombre: BOP Segovia, tipo: boletin, region: Castilla y León, url: "https://www.dipsegovia.es/bop"}
 - {id: bop-soria, nombre: BOP Soria, tipo: boletin, region: Castilla y León, url: "https://bop.dipsoria.es/"}
 - {id: bop-valladolid, nombre: BOP Valladolid, tipo: boletin, region: Castilla y León, url: "https://bop.sede.diputaciondevalladolid.es/"}
-- {id: bop-zamora, nombre: BOP Zamora, tipo: boletin, region: Castilla y León, url: "https://www.diputaciondezamora.es/bop"}
+- {id: bop-zamora, nombre: BOP Zamora, tipo: boletin, region: Castilla y León, url: "https://www.diputaciondezamora.es/", seguir: "bolet[ií]n oficial|\\bbop\\b"}
 
 # ======================= BOLETINES PROVINCIALES: RESTO (solo informática) =======================
 - {id: bop-almeria, nombre: BOP Almería, tipo: boletin, url: "https://www.dipalme.org/Servicios/cmsdipro/index.nsf/bop.xsp"}
 - {id: bop-cadiz, nombre: BOP Cádiz, tipo: boletin, url: "https://www.bopcadiz.es/"}
 - {id: bop-cordoba, nombre: BOP Córdoba, tipo: boletin, url: "https://bop.dipucordoba.es/"}
 - {id: bop-granada, nombre: BOP Granada, tipo: boletin, url: "https://bop2.dipgra.es/"}
-- {id: bop-huelva, nombre: BOP Huelva, tipo: boletin, url: "https://www.diphuelva.es/bop/"}
+- {id: bop-huelva, nombre: BOP Huelva, tipo: boletin, url: "https://www.diphuelva.es/", seguir: "bolet[ií]n oficial|\\bbop\\b"}
 - {id: bop-jaen, nombre: BOP Jaén, tipo: boletin, url: "https://bop.dipujaen.es/"}
 - {id: bop-malaga, nombre: BOP Málaga, tipo: boletin, url: "https://www.bopmalaga.es/"}
 - {id: bop-sevilla, nombre: BOP Sevilla, tipo: boletin, url: "https://www.dipusevilla.es/bop/"}
@@ -59,14 +60,14 @@
 - {id: bop-laspalmas, nombre: BOP Las Palmas, tipo: boletin, url: "https://www.boplaspalmas.net/"}
 - {id: bop-tenerife, nombre: BOP Santa Cruz de Tenerife, tipo: boletin, url: "https://www.bopsantacruzdetenerife.es/"}
 - {id: bop-albacete, nombre: BOP Albacete, tipo: boletin, url: "https://www.dipualba.es/"}
-- {id: bop-ciudadreal, nombre: BOP Ciudad Real, tipo: boletin, url: "https://bop.dipucr.es/"}
+- {id: bop-ciudadreal, nombre: BOP Ciudad Real, tipo: boletin, url: "https://bop.dipucr.es/", verificar_ssl: false}
 - {id: bop-cuenca, nombre: BOP Cuenca, tipo: boletin, url: "https://www.dipucuenca.es/"}
 - {id: bop-guadalajara, nombre: BOP Guadalajara, tipo: boletin, url: "https://boletin.dguadalajara.es/"}
 - {id: bop-toledo, nombre: BOP Toledo, tipo: boletin, url: "https://bop.diputoledo.es/"}
 - {id: bop-barcelona, nombre: BOP Barcelona, tipo: boletin, url: "https://bop.diba.cat/"}
 - {id: bop-girona, nombre: BOP Girona, tipo: boletin, url: "https://www.ddgi.cat/bop/"}
 - {id: bop-lleida, nombre: BOP Lleida, tipo: boletin, url: "https://bop.diputaciolleida.cat/"}
-- {id: bop-tarragona, nombre: BOP Tarragona, tipo: boletin, url: "https://www.diputaciodetarragona.cat/bop"}
+- {id: bop-tarragona, nombre: BOP Tarragona, tipo: boletin, url: "https://www.diputaciodetarragona.cat/bop", verificar_ssl: false}
 - {id: bop-alicante, nombre: BOP Alicante, tipo: boletin, url: "https://www.dip-alicante.es/bop2/"}
 - {id: bop-castellon, nombre: BOP Castellón, tipo: boletin, url: "https://bop.dipcas.es/"}
 - {id: bop-valencia, nombre: BOP Valencia, tipo: boletin, url: "https://bop.dival.es/"}
@@ -85,10 +86,10 @@
 - {id: ayto-gijon, nombre: Ayuntamiento de Gijón, tipo: web, region: Asturias, url: "https://www.gijon.es/"}
 - {id: ayto-oviedo, nombre: Ayuntamiento de Oviedo, tipo: web, region: Asturias, url: "https://www.oviedo.es/"}
 - {id: ayto-aviles, nombre: Ayuntamiento de Avilés, tipo: web, region: Asturias, url: "https://aviles.es/"}
-- {id: emtusa, nombre: EMTUSA Gijón, tipo: web, region: Asturias, url: "https://www.emtusagijon.es/"}
+- {id: emtusa, nombre: EMTUSA Gijón, tipo: web, region: Asturias, url: "https://www.emtusagijon.es/", verificar_ssl: false}
 - {id: ema-gijon, nombre: EMA Gijón (aguas), tipo: web, region: Asturias, url: "https://www.emagijon.es/"}
 - {id: divertia, nombre: Divertia Gijón, tipo: web, region: Asturias, url: "https://www.divertia.gijon.es/"}
-- {id: emulsa, nombre: Emulsa Gijón, tipo: web, region: Asturias, url: "https://www.emulsa.org/"}
+- {id: emulsa, nombre: Emulsa Gijón, tipo: web, region: Asturias, url: "https://www.emulsa.org/", verificar_ssl: false}
 - {id: uniovi, nombre: Universidad de Oviedo, tipo: web, region: Asturias, url: "https://www.uniovi.es/"}
 - {id: sespa, nombre: SESPA (Astursalud), tipo: web, region: Asturias, url: "https://www.astursalud.es/", seguir: "procesos selectivos|bolsa|ope|empleo|profesionales"}
 - {id: puerto-gijon, nombre: Puerto de Gijón, tipo: web, region: Asturias, url: "https://www.puertogijon.es/"}
@@ -119,7 +120,7 @@
 - {id: sepi, nombre: Portal de empleo SEPI, tipo: web, url: "https://www.sepi.es/"}
 - {id: renfe, nombre: Renfe, tipo: web, url: "https://www.renfe.com/es/es"}
 - {id: adif, nombre: Adif, tipo: web, url: "https://www.adif.es/"}
-- {id: aena, nombre: AENA, tipo: web, url: "https://www.aena.es/es/"}
+- {id: aena, nombre: AENA, tipo: web, url: "https://www.aena.es/", seguir: "empleo|trabaja"}
 - {id: puertos, nombre: Puertos del Estado, tipo: web, url: "https://www.puertos.es/"}
 - {id: bde, nombre: Banco de España, tipo: web, url: "https://www.bde.es/"}
 - {id: cnmv, nombre: CNMV, tipo: web, url: "https://www.cnmv.es/"}

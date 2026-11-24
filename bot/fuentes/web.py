@@ -20,12 +20,17 @@ from datetime import date
 from urllib.parse import urljoin, urlparse
 
 import requests
+import urllib3
 from bs4 import BeautifulSoup
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 log = logging.getLogger(__name__)
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; convocatorias-bot/1.0; uso personal)",
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                   "Chrome/131.0 Safari/537.36"),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "es-ES,es;q=0.9",
 }
 TIMEOUT = 40
@@ -52,6 +57,23 @@ EMPLEO = re.compile(
     re.I,
 )
 EMPLEO_WEB_EXTRA = re.compile(r"t[eé]cnic|perfil|analista|programador|ingenier|responsable|gestor|auxiliar", re.I)
+# Señal fuerte de que el anuncio es un proceso de selección (no un menú ni una noticia)
+CONVOCATORIA = re.compile(
+    r"convoca|bolsa|proceso selectivo|procesos selectivos|pruebas selectivas|oposici|\bplazas?\b"
+    r"|selecci[oó]n de personal|procesos? de selecci|provisi[oó]n (de|definitiva|temporal|interina)"
+    r"|lista de empleo|vacantes?\b|puestos? de trabajo|interin|perfil (t[eé]cnico|profesional)"
+    r"|contrataci[oó]n (temporal|laboral|de personal)|personal (laboral|funcionario|estatutario|temporal)",
+    re.I,
+)
+# Cosas que parecen empleo pero no lo son
+NO_EMPLEO = re.compile(
+    r"perfil (del|de) contratante|licitaci|contrato (de|menor)|subvenci|\bayudas?\b|\bbecas?\b|\bpremios?\b"
+    r"|pr[aá]cticas|presupuest|subasta|enajenaci|expropiaci|actas previas|ordenanza|padr[oó]n|\btasas?\b"
+    r"|impuesto|cursos? de formaci|planes? de formaci|formaci[oó]n (transversal|continua|abierta)|juez de paz"
+    r"|convenio colectivo|urbanis|licencia|cobranza|recaudaci|tribut|noticia|agenda|eventos?\b",
+    re.I,
+)
+NAV_CLASES = ("menu", "nav", "footer", "header", "breadcrumb", "cookie", "migas", "dropdown", "sidebar-menu")
 RUIDO = re.compile(
     r"^(inicio|contacto|aviso legal|cookies|accesibilidad|mapa web|pol[ií]tica de privacidad|buscar|"
     r"men[uú]|volver|siguiente|anterior|ver m[aá]s|leer m[aá]s|m[aá]s informaci[oó]n|descargar|pdf|"
@@ -77,6 +99,7 @@ class Fuente:
     region: str | None = None      # Asturias / Castilla y León / Cantabria, o None (solo informática)
     seguir: str | None = None      # regex de enlaces a seguir; por defecto según tipo
     pdf: bool = True               # leer PDFs del día enlazados (boletines)
+    verificar_ssl: bool = True     # false solo para webs públicas con el certificado mal instalado
     informatica: bool = False      # todo lo que publica es de informática (p. ej. INCIBE)
     verificada: bool = False
     extra: dict = field(default_factory=dict)
@@ -86,6 +109,7 @@ class Fuente:
 class Item:
     texto: str
     url: str
+    nav: bool = False   # enlace de menú/cabecera/pie: sirve para navegar, no es un anuncio
 
     @property
     def clave(self) -> str:
@@ -102,6 +126,7 @@ class Diagnostico:
     rss: str = ""
     pdfs: int = 0
     error: str = ""
+    muestra: list = field(default_factory=list)   # textos de enlaces (no menú) para depurar
 
 
 def expandir_url(url: str, hoy: date) -> str:
@@ -242,13 +267,27 @@ def _texto_enlace(a) -> str:
     padre = a
     for _ in range(4):
         padre = padre.parent
-        if padre is None:
+        if padre is None or padre.name in ("body", "html"):
             break
-        if padre.name in BLOQUES or (padre.name == "div" and len(padre.find_all("a")) <= 3):
+        if len(padre.find_all("a")) > 2:
+            break  # el bloque es un menú o un listado: el texto del padre no describe este enlace
+        if padre.name in BLOQUES or padre.name == "div":
             t = _limpio(padre.get_text(" "))
+            if len(t) > 500:
+                break
             if len(t) >= len(propio):
                 return t[:400]
     return propio[:400]
+
+
+def _es_nav(a) -> bool:
+    for p in a.parents:
+        if p.name in ("nav", "header", "footer", "aside"):
+            return True
+        marca = (" ".join(p.get("class") or []) + " " + (p.get("id") or "") + " " + (p.get("role") or "")).lower()
+        if any(k in marca for k in NAV_CLASES) or "navigation" in marca:
+            return True
+    return False
 
 
 def _enlaces_html(html: bytes, base: str) -> tuple[list[Item], str]:
@@ -268,12 +307,12 @@ def _enlaces_html(html: bytes, base: str) -> tuple[list[Item], str]:
         if not texto or (url, texto) in vistos:
             continue
         vistos.add((url, texto))
-        items.append(Item(texto, url))
+        items.append(Item(texto, url, nav=_es_nav(a)))
     return items, rss
 
 
-def _get(session: requests.Session, url: str) -> requests.Response:
-    r = session.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True)
+def _get(session: requests.Session, url: str, verificar: bool = True) -> requests.Response:
+    r = session.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True, verify=verificar)
     r.raise_for_status()
     return r
 
@@ -302,14 +341,14 @@ def _procesar(session, url: str, r: requests.Response, hoy: date, diag: Diagnost
 def obtener(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item], Diagnostico]:
     diag = Diagnostico()
     url = expandir_url(f.url, hoy)
-    r = _get(session, url)
+    r = _get(session, url, f.verificar_ssl)
     diag.paginas = 1
     items, rss = _procesar(session, url, r, hoy, diag)
 
     # Si la página anuncia un RSS, se usa además del HTML
     if rss and rss != url:
         try:
-            feed = _parsear_feed(_get(session, rss).content) or []
+            feed = _parsear_feed(_get(session, rss, f.verificar_ssl).content) or []
             items += feed
             diag.rss = rss
         except Exception as e:
@@ -343,7 +382,7 @@ def obtener(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item]
                     break
                 saltos += 1
                 try:
-                    r2 = _get(session, sig)
+                    r2 = _get(session, sig, f.verificar_ssl)
                     if _es_pdf(r2) and len(r2.content) > MAX_PDF_BYTES:
                         continue
                     nuevos, _ = _procesar(session, sig, r2, hoy, diag)
@@ -356,15 +395,19 @@ def obtener(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item]
                 break
 
     diag.enlaces = len(items)
+    diag.muestra = [f"{i.texto[:110]} -> {i.url[:90]}" for i in items if not i.nav and len(i.texto) > 30][:12]
     # Filtro de empleo (los boletines publican de todo)
     filtrados, claves = [], set()
     for it in items:
         if it.clave in claves:
             continue
-        if RUIDO.match(it.texto) or MENU.match(it.texto.strip(" .:")):
+        if it.nav or RUIDO.match(it.texto) or MENU.match(it.texto.strip(" .:")) or NO_EMPLEO.search(it.texto):
             continue
-        ok = EMPLEO.search(it.texto) or (f.tipo == "web" and EMPLEO_WEB_EXTRA.search(it.texto))
-        if ok and len(it.texto) >= 15:
+        if f.informatica:
+            ok = CONVOCATORIA.search(it.texto) or EMPLEO_WEB_EXTRA.search(it.texto)
+        else:
+            ok = CONVOCATORIA.search(it.texto)
+        if ok and len(it.texto) >= 20:
             claves.add(it.clave)
             filtrados.append(it)
     diag.items = len(filtrados)

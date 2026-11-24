@@ -166,14 +166,18 @@ def procesar_fuentes(store: Store | None, dry_run: bool, solo: list[str] | None 
 def probar_fuentes(solo: list[str] | None = None) -> None:
     """Diagnóstico: qué devuelve cada fuente, sin enviar ni guardar nada."""
     import os
+
+    def expandir(u):
+        return web.expandir_url(u, hoy())
     fuentes = [f for f in cargar_fuentes() if not solo or f.id in solo]
     filas = []
     for f, items, diag, error in descargar_todas(fuentes):
         relevantes = []
         for it in items:
             c = _a_convocatoria(f, it)
-            if _clasificar_item(f, c).enviar:
-                relevantes.append(it.texto[:90])
+            r = _clasificar_item(f, c)
+            if r.enviar:
+                relevantes.append(f"[{r.titulacion}{' 💻' if r.informatica else ''}] {it.texto[:140]}")
         if error:
             estado = "❌ error"
         elif diag.enlaces == 0:
@@ -207,6 +211,20 @@ def probar_fuentes(solo: list[str] | None = None) -> None:
     resumen = f"\n{ok}/{len(filas)} fuentes responden con anuncios de empleo. (* = URL sin verificar a mano)\n"
     texto = "\n".join(lineas) + resumen
     print(texto)
+    print("\n\n########## DETALLE POR FUENTE ##########")
+    for f, estado, diag, error, items, rel in filas:
+        print(f"\n=== {f.id} [{estado}] {expandir(f.url)}")
+        if error:
+            print("  error:", error)
+            continue
+        for t in rel[:8]:
+            print("  ✓", t)
+        if not rel:
+            for it in items[:5]:
+                print("  · empleo (no encaja):", it.texto[:110])
+        if not items:
+            for t in diag.muestra:
+                print("  ~", t)
     destino = os.getenv("GITHUB_STEP_SUMMARY")
     if destino:
         with open(destino, "a", encoding="utf-8") as fh:

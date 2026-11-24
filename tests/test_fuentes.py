@@ -66,7 +66,7 @@ PAGINAS = {
 
 
 class Sesion:
-    def get(self, url, headers=None, timeout=None, allow_redirects=True):
+    def get(self, url, headers=None, timeout=None, allow_redirects=True, verify=True):
         if url not in PAGINAS:
             raise RuntimeError(f"404 {url}")
         return R(*PAGINAS[url])
