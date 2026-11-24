@@ -77,6 +77,8 @@ def procesar_dia(nombre: str, fecha: date, store: Store | None, dry_run: bool,
         r = clasificador.clasificar(c)
         if r.enviar and r.plazo_fin and r.plazo_fin < hoy():
             r.enviar, r.motivo = False, "plazo cerrado"
+        elif r.enviar and not r.plazo_fin and clasificador.plazo_seguro_cerrado(c.fecha, r.plazo_texto, hoy()):
+            r.enviar, r.motivo = False, "plazo cerrado (contado desde otro boletín)"
         if r.enviar:
             r = llm.afinar(c, r)
         if dry_run:

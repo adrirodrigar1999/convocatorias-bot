@@ -224,3 +224,10 @@ def test_concurso_de_puesto_no_es_nueva():
         "Resolución de 9 de noviembre de 2026, del Ayuntamiento de Villaviciosa (Asturias), referente a la convocatoria para proveer puesto de trabajo por el sistema de concurso.",
         "u", parrafos=["Un puesto de Coordinador/a de Servicios Informáticos, perteneciente a la escala de Administración Especial.", BOE_FIN])
     assert not clasificador.clasificar(c).enviar
+
+
+def test_plazo_desde_otro_boletin_antiguo_se_da_por_cerrado():
+    t = "15 días hábiles desde la publicación en otro boletín (mira las bases)"
+    assert clasificador.plazo_seguro_cerrado(date(2026, 10, 15), t, date(2026, 11, 24))
+    assert not clasificador.plazo_seguro_cerrado(date(2026, 11, 18), t, date(2026, 11, 24))
+    assert not clasificador.plazo_seguro_cerrado(date(2026, 10, 15), "20 días hábiles", date(2026, 11, 24))

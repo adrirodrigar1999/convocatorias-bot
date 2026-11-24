@@ -264,6 +264,19 @@ def detectar_plazo(texto_norm: str, publicacion: date) -> tuple[str, date | None
     return "", None
 
 
+MARGEN_OTRO_BOLETIN = 15  # días naturales de margen por si el otro boletín sale después del BOE
+
+
+def plazo_seguro_cerrado(publicacion: date, plazo_texto: str, hoy: date) -> bool:
+    """Si el plazo cuenta desde otro boletín no sabemos la fecha exacta, pero ese boletín sale casi
+    siempre antes o a la vez que el BOE: con un margen amplio, si ya pasó, la damos por cerrada."""
+    m = re.match(r"(\d+) días (hábiles|naturales) desde la publicación en otro boletín", plazo_texto or "")
+    if not m:
+        return False
+    fin = sumar_dias(publicacion, int(m.group(1)), m.group(2) == "hábiles")
+    return fin + timedelta(days=MARGEN_OTRO_BOLETIN) < hoy
+
+
 def detectar_bases(texto: str) -> str:
     m = re.search(r"En el «([^»]+)»(?:,)?(?: núm(?:ero|\.)\s*(\d+))?,? de (\d{1,2} de \w+ de \d{4})", texto)
     if not m:
