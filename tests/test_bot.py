@@ -37,15 +37,15 @@ ESPERADO = {
     "BOE-A-2026-9919": True,   # Segovia, informática, CyL
     "BOE-A-2026-0002": True,   # Elche, informática, resto de España
     "BOE-A-2026-0003": False,  # promoción interna
-    "BOE-A-2026-0004": True,   # Gijón, TAG + auxiliar (arquitecto fuera)
-    "BOE-A-2026-0005": True,   # Torrelavega, policía local (revisar)
+    "BOE-A-2026-0004": True,   # Gijón: solo TAG (auxiliar C2 y arquitecto fuera)
+    "BOE-A-2026-0005": False,  # Torrelavega (Cantabria ya no es región), policía local
     "BOE-A-2026-0006": False,  # docentes universitarios
     "BOE-A-2026-0007": True,   # Estado, Cuerpo de Gestión de Sistemas e Informática
-    "BOE-A-2026-0008": True,   # Junta CyL, Cuerpo Administrativo
+    "BOE-A-2026-0008": False,  # Junta CyL, Cuerpo Administrativo (CyL ya no es región)
     "BOE-A-2026-0009": False,  # lista de admitidos
     "BOE-A-2026-0010": False,  # libre designación
     "BOE-A-2026-0011": False,  # Getafe TAG: ni informática ni región
-    "BOE-A-2026-0012": True,   # León, agente de movilidad
+    "BOE-A-2026-0012": False,  # León, agente de movilidad
 }
 
 
@@ -57,7 +57,7 @@ def test_decision(resultados, ident, enviar):
 
 def test_detalle_segovia(resultados):
     _, r = resultados["BOE-A-2026-9919"]
-    assert r.region == "Castilla y León" and r.informatica
+    assert r.region is None and r.informatica   # CyL ya no es región: entra por informática
     assert r.grupos == ["A2"]
     assert r.titulacion == "revisar"
     assert r.sistema == "Concurso-oposición"
@@ -68,10 +68,9 @@ def test_detalle_segovia(resultados):
 def test_gijon_quita_arquitecto(resultados):
     _, r = resultados["BOE-A-2026-0004"]
     assert r.region == "Asturias"
-    assert len(r.plazas) == 2
-    assert not any("Arquitect" in p for p in r.plazas)
+    assert len(r.plazas) == 1 and "Administración General" in r.plazas[0]
     assert r.titulacion == "ok"
-    assert set(r.grupos) == {"A1", "C2"}
+    assert r.grupos == ["A1"]
 
 
 def test_elche_espana(resultados):
@@ -189,3 +188,20 @@ def test_programacion_lunes_y_jueves():
     assert not toca_ejecutar(dt(26, 8), dt(23, 9), lj, 9, 0)        # jueves antes de las 9
     assert toca_ejecutar(dt(28), dt(23, 9), lj, 9, 0)               # Mac apagado el jueves: se hace el sábado
     assert not toca_ejecutar(dt(28, 11), dt(28), lj, 9, 0)          # y ya no se repite
+
+
+@pytest.mark.parametrize("plaza,enviar", [
+    ("Una plaza de Técnico/a de Gestión, escala de Administración General, subescala de Gestión", True),
+    ("Una plaza de Técnico/a Superior de Recursos Humanos, subgrupo A1", True),
+    ("Una plaza de Técnico/a Medio de Comunicación, subgrupo A2", True),
+    ("Una plaza de Administrativo/a, escala de Administración General, subescala Administrativa", False),  # C1
+    ("Una plaza de Técnico/a Superior de Medio Ambiente, subgrupo A1", False),   # no es de oficina
+    ("Una plaza de Arquitecto/a Técnico/a, subgrupo A2", False),
+    ("Una plaza de Conserje", False),
+])
+def test_asturias_solo_oficina_a1_a2(plaza, enviar):
+    from bot.modelo import Convocatoria
+    c = Convocatoria("X", "BOE", FECHA, "ADMINISTRACIÓN LOCAL",
+                     "Resolución del Ayuntamiento de Siero (Asturias), referente a la convocatoria para proveer una plaza.",
+                     "u", parrafos=[f"{plaza}, por el sistema de oposición, en turno libre.", BOE_FIN])
+    assert clasificador.clasificar(c).enviar is enviar

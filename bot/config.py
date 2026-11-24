@@ -33,7 +33,7 @@ HORA_EJECUCION = os.getenv("HORA_EJECUCION", "09:00")
 DIAS_EJECUCION = os.getenv("DIAS_EJECUCION", "lun,jue")
 ZONA_HORARIA = "Europe/Madrid"
 # Mensaje silencioso diario aunque no haya novedades (sirve para saber que el bot sigue vivo)
-RESUMEN_DIARIO = os.getenv("RESUMEN_DIARIO", "1") == "1"
+RESUMEN_DIARIO = os.getenv("RESUMEN_DIARIO", "0") == "1"
 # Días hacia atrás que se revisan en la primera ejecución. Solo se avisa de las que siguen con
 # plazo abierto (20 días hábiles ≈ 4 semanas, así que 45 cubre de sobra los plazos normales).
 DIAS_PRIMERA_EJECUCION = int(os.getenv("DIAS_PRIMERA_EJECUCION", "45"))
@@ -48,15 +48,19 @@ TITULACIONES = [
     "Máster Universitario en Ingeniería Informática (UOC)",
 ]
 
-# Regiones donde interesa CUALQUIER plaza accesible con tu titulación.
+# Regiones donde, además de informática, interesan plazas de oficina que pidan un grado.
 # Fuera de ellas solo se avisa de plazas de informática.
-REGIONES = ["Asturias", "Castilla y León", "Cantabria"]
+REGIONES = ["Asturias"]
 
-# Grupos que te interesan en las regiones. None = todos (A1, A2, B, C1, C2, AP).
-# Ejemplo para limitar: ["A1", "A2", "B", "C1"]
-GRUPOS_REGION = None
-# Si no se puede deducir el grupo del texto, ¿avisar igualmente?
-INCLUIR_GRUPO_DESCONOCIDO = True
+# En esas regiones: solo estos grupos (A1/A2 = piden grado) ...
+GRUPOS_REGION = ["A1", "A2"]
+# ... y si no se puede deducir el grupo del texto, no se avisa.
+INCLUIR_GRUPO_DESCONOCIDO = False
+# ... y solo puestos de oficina: administración general, gestión, jurídico, RR. HH., económico, etc.
+REGION_SOLO_OFICINA = True
+
+# Una convocatoria parecida a otra ya enviada en estos días se considera repetida
+DIAS_ANTIDUPLICADOS = 150
 
 # --- Clasificación con IA (opcional) -------------------------------------------
 # Si pones una API key de Anthropic, los casos dudosos ("revisar titulación")

@@ -104,3 +104,36 @@ def formatear_resumen(nombre: str, pares: list) -> str:
     if len(pares) > 15:
         lineas.append(f"… y {len(pares) - 15} más")
     return "\n".join(lineas)
+
+
+def _api(metodo: str, datos: dict) -> dict:
+    url = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/{metodo}"
+    r = requests.post(url, json=datos, timeout=30)
+    try:
+        return r.json()
+    except ValueError:
+        return {"ok": False}
+
+
+def borrar_mensajes(hacia_atras: int = 5000) -> int:
+    """Borra los últimos mensajes del chat. En chats privados el bot puede borrar los suyos y los
+    tuyos, pero Telegram solo deja borrar los de las últimas 48 horas."""
+    if not config.TELEGRAM_TOKEN or not config.TELEGRAM_CHAT_ID:
+        log.warning("Falta TELEGRAM_TOKEN o TELEGRAM_CHAT_ID")
+        return 0
+    marca = _api("sendMessage", {"chat_id": config.TELEGRAM_CHAT_ID, "text": "🧹 Borrando avisos…",
+                                 "disable_notification": True})
+    if not marca.get("ok"):
+        log.error("No se pudo escribir en el chat: %s", marca)
+        return 0
+    ultimo = marca["result"]["message_id"]
+    borrados = 0
+    for fin in range(ultimo, max(0, ultimo - hacia_atras), -100):
+        ids = list(range(max(1, fin - 99), fin + 1))
+        resp = _api("deleteMessages", {"chat_id": config.TELEGRAM_CHAT_ID, "message_ids": ids})
+        if resp.get("ok"):
+            borrados += len(ids)
+        time.sleep(0.4)
+        if fin - 100 < 1:
+            break
+    return borrados

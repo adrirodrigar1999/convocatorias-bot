@@ -2,9 +2,13 @@
 
 Revisa los boletines (lunes y jueves, desde tu Mac) y te avisa por Telegram de:
 
-- **Asturias, Castilla y León y Cantabria**: cualquier plaza de acceso libre de cualquier organismo
-  a la que puedas presentarte con tu grado + máster (también bolsas e interinidades).
-- **Resto de España**: solo plazas de informática, también de cualquier organismo.
+- **Toda España**: plazas de informática de cualquier organismo (también bolsas e interinidades).
+- **Asturias**, además: plazas **A1/A2 de oficina** que pidan un grado (administración general,
+  gestión, jurídico-administrativo, RR. HH., económico, comunicación…). Nada de C1/C2 ni de puestos
+  que exijan otra carrera concreta.
+
+Solo avisa de convocatorias **con el plazo abierto** y **nunca repite** una convocatoria, aunque salga
+en dos fuentes (por ejemplo en el BOPA y semanas después en el BOE).
 
 **Fuentes**
 
@@ -17,8 +21,8 @@ Revisa los boletines (lunes y jueves, desde tu Mac) y te avisa por Telegram de:
 El lector genérico entiende RSS, XML/CSV de datos abiertos, páginas HTML y el PDF del día de los
 boletines que solo publican así. Desde la portada sigue hasta 2 niveles de enlaces tipo «sumario»,
 «último boletín», «empleo», «procesos selectivos» o con la fecha de hoy, y se queda con los anuncios
-de empleo. En la primera pasada de cada fuente manda **un único resumen** con lo que ya había
-publicado; después, un mensaje por anuncio nuevo. Si una fuente falla 2 revisiones seguidas,
+de empleo. La primera vez que mira una fuente no te manda lo que ya estaba publicado (salvo que el
+propio anuncio diga que el plazo sigue abierto); después, un mensaje por cada anuncio nuevo. Si una fuente falla 2 revisiones seguidas,
 te avisa una vez para que la revises.
 
 Descarta lo que no abre plazo (listas de admitidos, tribunales, nombramientos, correcciones),
@@ -62,6 +66,8 @@ actualiza el código con `git pull` (así te llegan las fuentes que se vayan arr
 - Cambiar días u hora: `DIAS_EJECUCION` y `HORA_EJECUCION` en `.env`
 - Forzar una revisión ahora: `.venv/bin/python -m bot.main`
 - Quitarlo: `./scripts/mac/desinstalar.sh`
+- Empezar de cero (borra los mensajes del chat de las últimas 48 h y todo lo que el bot ha visto):
+  `.venv/bin/python -m bot.main --reset` y después `.venv/bin/python -m bot.main`
 - El Mac tiene que tener tu sesión iniciada (vale con la pantalla bloqueada o en reposo).
 
 ### Pruebas sin enviar nada

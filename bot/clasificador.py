@@ -94,6 +94,19 @@ GENERICAS = _rx(
     r"|cuerpo (superior|de gestion|administrativo|auxiliar) de (la )?administracion"
     r"|escala (de gestion|administrativa|auxiliar)|gestion universitaria|tecnic[oa] de administracion"
 )
+# Puestos "de oficina" que piden un grado cualquiera o afín (para las regiones)
+OFICINA = _rx(
+    r"administracion general|tecnic[oa]s? (superior(es)? |medi[oa]s? )?(de |en )?(gestion|administracion)"
+    r"|gestion (administrativa|economica|financiera|de recursos humanos|universitaria|de personal|publica)"
+    r"|escala (de gestion|tecnica de gestion|de tecnicos de gestion|superior de administradores)"
+    r"|cuerpo (superior|de gestion|de tecnicos superiores)( de)?( la)? administracion|administradores? (civiles|generales)"
+    r"|juridic|tecnic[oa]s? (superior(es)? |medi[oa]s? )?(de |en )?(recursos humanos|personal|contratacion|presupuestos"
+    r"|organizacion|calidad|transparencia|proteccion de datos|subvenciones|modernizacion|desarrollo local|empleo"
+    r"|igualdad|cultura|turismo|comunicacion|prevencion de riesgos|participacion|juventud|consumo|patrimonio)"
+    r"|agente de (empleo y )?desarrollo local|gestor[a]? (administrativ|de|cultural)|economist|tecnico economic"
+    r"|inspector[a]? de (tributos|hacienda|consumo)|archiver|bibliotecari|documentalist|archivos y bibliotecas"
+    r"|comunicacion|audiovisual|multimedia|diseno grafico|protocolo|relaciones (publicas|institucionales)"
+)
 AFIN = _rx(
     r"audiovisual|multimedia|diseno grafico|\bcomunicacion\b|fotograf|\bvideo|\bweb\b"
     r"|contenidos digitales|redes sociales|community|prensa"
@@ -340,14 +353,17 @@ def clasificar(c: Convocatoria, region=AUTO, exigir_convocatoria: bool = True,
         if tit == "no":
             descartes.append(nota.lower())
             continue
-        if region:
-            if config.GRUPOS_REGION is not None and not es_info:
+        if region and not es_info:
+            if config.GRUPOS_REGION is not None:
                 if grupos and not set(grupos) & set(config.GRUPOS_REGION):
-                    descartes.append("grupo fuera de tu filtro")
+                    descartes.append("grupo inferior a A2")
                     continue
                 if not grupos and not config.INCLUIR_GRUPO_DESCONOCIDO:
                     descartes.append("grupo desconocido")
                     continue
+            if config.REGION_SOLO_OFICINA and not OFICINA.search(n):
+                descartes.append("no es un puesto de oficina")
+                continue
         elif not es_info:
             descartes.append("no es de informática")
             continue
@@ -386,3 +402,59 @@ def clasificar(c: Convocatoria, region=AUTO, exigir_convocatoria: bool = True,
         plazo_fin=plazo_fin,
         bases=detectar_bases(c.texto),
     )
+
+
+# --- Plazo en textos cortos (webs y boletines) -----------------------------------------------
+MESES = {"enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7, "agosto": 8,
+         "septiembre": 9, "setiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12}
+PISTA_PLAZO = re.compile(r"plazo|fecha fin|fin de plazo|hasta el|finaliza|termina|presentacion de (solicitudes|instancias)|del .{3,25} al ")
+
+
+def fechas_en_texto(texto_norm: str, hoy: date) -> list[date]:
+    fechas = []
+    for d, m, a in re.findall(r"\b(\d{1,2})[/.-](\d{1,2})[/.-](20\d\d)\b", texto_norm):
+        try:
+            fechas.append(date(int(a), int(m), int(d)))
+        except ValueError:
+            pass
+    for d, mes, a in re.findall(r"\b(\d{1,2}) de (" + "|".join(MESES) + r")(?: de (20\d\d))?", texto_norm):
+        anio = int(a) if a else hoy.year
+        try:
+            f = date(anio, MESES[mes], int(d))
+        except ValueError:
+            continue
+        if not a and (f - hoy).days < -200:   # "10 de enero" leído en diciembre
+            f = date(anio + 1, f.month, f.day)
+        fechas.append(f)
+    return fechas
+
+
+def fin_de_plazo_en_texto(texto: str, hoy: date) -> date | None:
+    """Si el texto habla de plazo, devuelve la fecha más tardía que menciona."""
+    n = norm(texto)
+    if not PISTA_PLAZO.search(n):
+        return None
+    fechas = fechas_en_texto(n, hoy)
+    return max(fechas) if fechas else None
+
+
+# --- Huella para no repetir la misma convocatoria vista en dos fuentes ------------------------
+VACIAS = set("""resolucion resoluciones convocatoria convocatorias convoca convocan proveer provision plaza plazas
+referente para por con del las los una uno dos tres cuatro cinco sistema oposicion concurso libre turno personal
+funcionario funcionaria laboral fijo fija publica publico bases boletin oficial provincia estado principado asturias
+anuncio edicto acuerdo aprobacion aprueba proceso procesos selectivo selectivos pruebas ingreso acceso general
+noviembre diciembre enero febrero marzo abril mayo junio julio agosto septiembre octubre perteneciente
+pertenecientes escala subescala clase grupo subgrupo carrera plantilla vacante vacantes empleo ofertas oferta
+mediante sobre desde hasta segun dicha dicho este esta presente siguiente siguientes""".split())
+
+
+def huella(texto: str) -> frozenset:
+    palabras = re.findall(r"[a-z]{4,}", norm(texto))
+    return frozenset(p for p in palabras if p not in VACIAS)
+
+
+def parecidas(a: frozenset, b: frozenset) -> bool:
+    """Casi todas las palabras de la más corta están en la otra (mismo organismo y mismo puesto)."""
+    if len(a) < 4 or len(b) < 4:
+        return False
+    return len(a & b) / min(len(a), len(b)) >= 0.85

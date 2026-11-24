@@ -25,6 +25,11 @@ class Store:
                 fecha TEXT,
                 PRIMARY KEY (fuente, fecha)
             );
+            CREATE TABLE IF NOT EXISTS enviados (
+                id TEXT,
+                huella TEXT,
+                fecha TEXT
+            );
             CREATE TABLE IF NOT EXISTS estado_fuentes (
                 id TEXT PRIMARY KEY,
                 ultimo_ok TEXT,
@@ -91,3 +96,15 @@ class Store:
     def marcar_avisado(self, ids: list[str]) -> None:
         self.db.executemany("UPDATE estado_fuentes SET avisado = 1 WHERE id = ?", [(i,) for i in ids])
         self.db.commit()
+
+    # --- Antiduplicados entre fuentes ----------------------------------------------------
+    def registrar_envio(self, ident: str, huella: frozenset) -> None:
+        self.db.execute("INSERT INTO enviados VALUES (?, ?, ?)",
+                        (ident, " ".join(sorted(huella)), datetime.now().isoformat(timespec="seconds")))
+        self.db.commit()
+
+    def huellas_recientes(self, dias: int) -> list[frozenset]:
+        from datetime import timedelta
+        desde = (datetime.now() - timedelta(days=dias)).isoformat()
+        filas = self.db.execute("SELECT huella FROM enviados WHERE fecha >= ?", (desde,)).fetchall()
+        return [frozenset(h.split()) for (h,) in filas]

@@ -6,6 +6,7 @@
   python -m bot.main --fecha 2026-11-24 --dry-run    muestra qué avisaría, sin enviar ni guardar
   python -m bot.main --desde 2026-11-01 --hasta 2026-11-24
   python -m bot.main --prueba-telegram     manda un mensaje de prueba
+  python -m bot.main --reset               borra los mensajes enviados y reinicia el estado
   python -m bot.main --probar-fuentes [id ...]   diagnóstico de boletines y webs
   python -m bot.main --solo-fuentes --dry-run    qué avisaría hoy de boletines y webs
 """
@@ -32,6 +33,25 @@ TZ = ZoneInfo(config.ZONA_HORARIA)
 
 def hoy() -> date:
     return datetime.now(TZ).date()
+
+
+def _repetida(store: Store | None, texto: str) -> bool:
+    if store is None:
+        return False
+    h = clasificador.huella(texto)
+    return any(clasificador.parecidas(h, otra) for otra in store.huellas_recientes(config.DIAS_ANTIDUPLICADOS))
+
+
+def _enviar_aviso(store: Store, c, r, texto_huella: str) -> bool:
+    """Envía si no es repetida. Devuelve False solo si Telegram falla (para reintentar)."""
+    if _repetida(store, texto_huella):
+        store.guardar(c, False, "repetida (ya enviada desde otra fuente)")
+        return True
+    if not telegram.enviar(telegram.formatear(c, r)):
+        return False
+    store.guardar(c, True, r.motivo)
+    store.registrar_envio(c.id, clasificador.huella(texto_huella))
+    return True
 
 
 def procesar_dia(nombre: str, fecha: date, store: Store | None, dry_run: bool,
@@ -64,12 +84,11 @@ def procesar_dia(nombre: str, fecha: date, store: Store | None, dry_run: bool,
                 print("\n" + "=" * 70 + "\n" + telegram.formatear(c, r))
             else:
                 print(f"  descartado {c.id}: {r.motivo} | {c.titulo[:110]}")
-        else:
-            ok = telegram.enviar(telegram.formatear(c, r)) if r.enviar else True
-            if ok:
-                store.guardar(c, r.enviar, r.motivo)
-            else:
+        elif r.enviar:
+            if not _enviar_aviso(store, c, r, r.organismo + " " + " ".join(r.plazas or [c.titulo])):
                 fallos += 1
+        else:
+            store.guardar(c, False, r.motivo)
         avisos += int(r.enviar)
 
     if fallos:
@@ -127,6 +146,15 @@ def procesar_fuentes(store: Store | None, dry_run: bool, solo: list[str] | None 
                 continue
             nuevos_total += 1
             r = _clasificar_item(f, c)
+            fin = clasificador.fin_de_plazo_en_texto(c.titulo, hoy())
+            if fin:
+                r.plazo_fin, r.plazo_texto = fin, "según el anuncio"
+                if r.enviar and fin < hoy():
+                    r.enviar, r.motivo = False, "plazo cerrado"
+            # Primera vez que se mira esta fuente: lo que ya estaba publicado solo se avisa
+            # si el propio anuncio dice que el plazo sigue abierto (el resto se guarda en silencio).
+            if r.enviar and primera and not fin:
+                r.enviar, r.motivo = False, "ya publicado antes de empezar a vigilar la fuente"
             if r.enviar:
                 r = llm.afinar(c, r)
             pares.append((c, r))
@@ -139,18 +167,15 @@ def procesar_fuentes(store: Store | None, dry_run: bool, solo: list[str] | None 
                 print(telegram.formatear(c, r) + "\n")
             continue
 
-        if primera and enviables:
-            ok = telegram.enviar(telegram.formatear_resumen(f.nombre, enviables))
-            if not ok:
-                continue  # se reintentará entera en la próxima pasada
-            for c, r in pares:
-                store.guardar(c, r.enviar, r.motivo)
-        else:
-            for c, r in pares:
-                if r.enviar and not telegram.enviar(telegram.formatear(c, r)):
-                    continue
-                store.guardar(c, r.enviar, r.motivo)
-        store.fuente_ok(f.id)
+        fallo = False
+        for c, r in pares:
+            if r.enviar:
+                if not _enviar_aviso(store, c, r, c.titulo):
+                    fallo = True
+            else:
+                store.guardar(c, False, r.motivo)
+        if not fallo:
+            store.fuente_ok(f.id)
 
     if store and not dry_run:
         rotas = store.fuentes_rotas_sin_avisar(UMBRAL_AVISO_ROTA)
@@ -324,6 +349,22 @@ def programado() -> None:
         fh.write(ahora.isoformat(timespec="seconds"))
 
 
+def resetear(confirmado: bool = False) -> None:
+    """Borra los mensajes del chat (Telegram permite hasta 48 h atrás) y el estado del bot."""
+    import os
+    if not confirmado:
+        resp = input("Se borrarán los mensajes del chat del bot y todo lo que ha visto. Escribe SI para seguir: ")
+        if resp.strip().upper() != "SI":
+            print("Cancelado.")
+            return
+    borrados = telegram.borrar_mensajes()
+    for ruta in (config.DB_PATH, config.ULTIMA_EJECUCION_PATH):
+        if os.path.exists(ruta):
+            os.remove(ruta)
+    print(f"Hecho: chat limpiado (últimos {borrados} mensajes) y estado del bot reiniciado.")
+    print("La próxima revisión volverá a mirar 45 días atrás y solo avisará de lo que siga abierto.")
+
+
 def bucle() -> None:
     h, m = map(int, config.HORA_EJECUCION.split(":"))
     log.info("Modo daemon: revisión diaria a las %s (%s)", config.HORA_EJECUCION, config.ZONA_HORARIA)
@@ -353,11 +394,16 @@ def main() -> None:
     ap.add_argument("--hasta", type=date.fromisoformat)
     ap.add_argument("--dry-run", action="store_true", help="no envía ni guarda; imprime los avisos")
     ap.add_argument("--prueba-telegram", action="store_true")
+    ap.add_argument("--reset", action="store_true", help="borra los mensajes enviados y el estado del bot")
+    ap.add_argument("--si", action="store_true", help="no pedir confirmación (con --reset)")
     ap.add_argument("--probar-fuentes", nargs="*", metavar="ID",
                     help="diagnóstico de boletines/webs (todas o las indicadas)")
     ap.add_argument("--solo-fuentes", action="store_true", help="revisa boletines/webs sin el BOE")
     a = ap.parse_args()
 
+    if a.reset:
+        resetear(a.si)
+        return
     if a.probar_fuentes is not None:
         probar_fuentes(a.probar_fuentes or None)
         return

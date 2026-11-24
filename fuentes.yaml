@@ -1,8 +1,8 @@
 # Fuentes que revisa el bot además del BOE.
 #
 #   tipo: boletin | web
-#   region: Asturias | Castilla y León | Cantabria  -> cualquier plaza accesible con tu titulación
-#           (vacío)                                 -> solo plazas de informática
+#   region: si coincide con REGIONES de bot/config.py (hoy solo Asturias) -> informática + plazas A1/A2
+#           de oficina; cualquier otro valor o vacío -> solo plazas de informática
 #   url: admite {yyyy} {mm} {dd} {yyyymmdd} para páginas que cambian cada día
 #   seguir: (opcional) regex del texto de los enlaces que llevan al listado real
 #   informatica: true  -> todo lo que publica cuenta como informática (p. ej. INCIBE)

@@ -102,8 +102,7 @@ def test_pdf_del_dia_siguiendo_enlaces():
 def test_html_con_texto_del_bloque():
     _, _, rel = _relevantes(F["bocyl"])
     titulos = [c.titulo for c, _ in rel]
-    assert len(rel) == 1 and "Cuerpo de Gestión" in titulos[0]   # admitidos y médico fuera
-    assert rel[0][1].region == "Castilla y León" and rel[0][1].grupos == ["A2"]
+    assert rel == []   # CyL ya no es región y nada es de informática
 
 
 def test_rss_autodescubierto():
@@ -134,27 +133,34 @@ def test_fuentes_yaml_valido():
 
 
 def test_flujo_completo(tmp_path, monkeypatch):
-    """Primera pasada: un resumen por fuente. Segunda: nada repetido. Fuente rota: aviso único."""
+    """1ª pasada: silencio salvo plazo abierto explícito. Después: solo lo nuevo, sin repetir entre fuentes."""
     enviados = []
     monkeypatch.setattr(M.telegram, "enviar", lambda t, silencioso=False: enviados.append(t) or True)
     monkeypatch.setattr(M.requests, "Session", Sesion)
     rota = Fuente("rota", "Fuente rota", "web", "https://no-existe.es/")
-    monkeypatch.setattr(M, "cargar_fuentes", lambda: [F["bopa"], F["incibe"], rota])
+    otra = Fuente("otra", "Otra web", "web", "https://otra.es/", informatica=True)
+    monkeypatch.setattr(M, "cargar_fuentes", lambda: [F["bopa"], F["incibe"], otra, rota])
     monkeypatch.setattr(M, "hoy", lambda: HOY)
+    monkeypatch.setattr(M.config, "DB_PATH", str(tmp_path / "db.sqlite"))
+    PAGINAS["https://otra.es/"] = (b"<html><ul><li><a href='/x'>Convocatoria de bolsa de T\xc3\xa9cnico de Ciberseguridad "
+                                   b"(plazo hasta el 2 de diciembre de 2026)</a></li>"
+                                   b"<li><a href='/y'>Convocatoria de bolsa de Programador (fecha fin: 01/11/2026)</a></li></ul></html>",
+                                   "text/html")
     store = Store(str(tmp_path / "db.sqlite"))
 
     M.procesar_fuentes(store, dry_run=False)
-    assert sum("primera revisión" in t for t in enviados) == 2
+    # solo el de plazo abierto explícito; el cerrado y lo ya publicado en BOPA/INCIBE, en silencio
+    assert len(enviados) == 1 and "Ciberseguridad" in enviados[0] and "02/12/2026" in enviados[0]
 
-    PAGINAS["https://www.incibe.es/empleo"] = (INCIBE.replace(b"</div>\n</div>",
-        b'</div><div class="conv"><h3><a href="/empleo/INC-26002">Convocatoria p\xc3\xbablica. Perfil T\xc3\xa9cnico de Ciberseguridad</a></h3></div></div>'), "text/html")
     enviados.clear()
+    PAGINAS["https://www.incibe.es/empleo"] = (INCIBE.replace(b"</div>\n</div>",
+        b'</div><div class="conv"><h3><a href="/empleo/INC-26002">Convocatoria p\xc3\xbablica. Perfil T\xc3\xa9cnico de Ciberseguridad de Sistemas</a></h3></div>'
+        b'<div class="conv"><h3><a href="/empleo/INC-26003">Convocatoria de bolsa de T\xc3\xa9cnico de Ciberseguridad (plazo hasta el 2 de diciembre de 2026)</a></h3></div></div>'), "text/html")
     for _ in range(M.UMBRAL_AVISO_ROTA):
         M.procesar_fuentes(store, dry_run=False)
-    nuevos = [t for t in enviados if "Ciberseguridad" in t]
-    assert len(nuevos) == 1 and "Ver anuncio" in nuevos[0]
-    avisos_rota = [t for t in enviados if "sin responder" in t]
-    assert len(avisos_rota) == 1 and "rota" in avisos_rota[0]
+    avisos = [t for t in enviados if "Ver anuncio" in t]
+    assert len(avisos) == 1 and "Sistemas" in avisos[0]      # el INC-26003 es el mismo que ya llegó de "otra"
+    assert sum("sin responder" in t for t in enviados) == 1
 
 
 def test_ruido_de_webs_fuera():
@@ -176,3 +182,38 @@ def test_ruido_de_webs_fuera():
     assert any("Sistemas Informáticos" in t for t in textos)
     assert any(t.startswith("ORDEN PRE/2/2026") for t in textos)   # título tomado del texto anterior al enlace PDF
     assert len(items) == 2, textos
+
+
+def test_reset_borra_chat_y_estado(tmp_path, monkeypatch):
+    llamadas = []
+
+    def api(metodo, datos):
+        llamadas.append((metodo, datos.get("message_ids", [])))
+        return {"ok": True, "result": {"message_id": 250}} if metodo == "sendMessage" else {"ok": True}
+
+    monkeypatch.setattr(M.telegram, "_api", api)
+    monkeypatch.setattr(M.telegram.time, "sleep", lambda s: None)
+    monkeypatch.setattr(M.config, "TELEGRAM_TOKEN", "x")
+    monkeypatch.setattr(M.config, "TELEGRAM_CHAT_ID", "1")
+    db = tmp_path / "db.sqlite"
+    Store(str(db))
+    monkeypatch.setattr(M.config, "DB_PATH", str(db))
+    monkeypatch.setattr(M.config, "ULTIMA_EJECUCION_PATH", str(tmp_path / "ultima.txt"))
+    M.resetear(confirmado=True)
+    borradas = sorted(i for m, ids in llamadas if m == "deleteMessages" for i in ids)
+    assert borradas == list(range(1, 251)) and not db.exists()
+
+
+def test_boe_y_boletin_no_repiten(tmp_path, monkeypatch):
+    from bot.modelo import Convocatoria, Resultado
+    enviados = []
+    monkeypatch.setattr(M.telegram, "enviar", lambda t, silencioso=False: enviados.append(t) or True)
+    store = Store(str(tmp_path / "db.sqlite"))
+    c1 = Convocatoria("BOE-A-1", "BOE", HOY, "ADMINISTRACIÓN LOCAL", "t", "u")
+    r1 = Resultado(True, "region", organismo="Ayuntamiento de Siero (Asturias)",
+                   plazas=["Una plaza de Técnico/a de Administración General"])
+    assert M._enviar_aviso(store, c1, r1, r1.organismo + " " + r1.plazas[0])
+    c2 = Convocatoria("bopa:1", "BOPA", HOY, "BOPA",
+                      "Anuncio. Ayuntamiento de Siero. Bases para la provisión de una plaza de Técnico/a de Administración General", "u")
+    assert M._enviar_aviso(store, c2, Resultado(True, "region"), c2.titulo)
+    assert len(enviados) == 1 and store.visto("bopa:1")
