@@ -70,7 +70,9 @@ NO_EMPLEO = re.compile(
     r"perfil (del|de) contratante|licitaci|contrato (de|menor)|subvenci|\bayudas?\b|\bbecas?\b|\bpremios?\b"
     r"|pr[aá]cticas|presupuest|subasta|enajenaci|expropiaci|actas previas|ordenanza|padr[oó]n|\btasas?\b"
     r"|impuesto|cursos? de formaci|planes? de formaci|formaci[oó]n (transversal|continua|abierta)|juez de paz"
-    r"|convenio colectivo|urbanis|licencia|cobranza|recaudaci|tribut|noticia|agenda|eventos?\b",
+    r"|convenio colectivo|urbanis|licencia|cobranza|recaudaci|tribut|noticia|agenda|eventos?\b"
+    r"|^(en )?este apartado|enlace de acceso|calendario|predoctoral|postdoctoral|envejecimiento|programa de"
+    r"|^(el|la|los|las) (ayuntamiento|diputaci|junta|universidad|consejer|gobierno|alcald)",
     re.I,
 )
 # Documentos de un proceso ya en marcha (no son convocatorias nuevas)
@@ -80,7 +82,8 @@ TRAMITE = re.compile(
     r"|cuestionario|\bex[aá]menes?\b|ejercicio|temario|baremaci|valoraci[oó]n|subsanaci|alegaci|acuerdo adoptado"
     r"|mesa (de|general)|modificaci|instrucciones|\banexos?\b|modelo de|formulario|movilidad|carrera (y|profesional)"
     r"|jefaturas?|supervisi|coordinaci|desarrollo profesional|bases generales|toma de posesi|adjudica|admitid|excluid"
-    r"|aprobad|nombramient|tribunal|correcci[oó]n|desiert|renuncia|lista (provisional|definitiva)|listado",
+    r"|aprobad|nombramient|tribunal|correcci[oó]n|rectificaci|desiert|renuncia|lista (provisional|definitiva)|listado"
+    r"|acumulaci[oó]n|ampliaci[oó]n|pruebas f[ií]sicas|fecha (de|del) (examen|ejercicio)",
     re.I,
 )
 # Para webs: si el texto es corto, debe nombrar un puesto o cuerpo
