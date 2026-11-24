@@ -166,3 +166,11 @@ def test_docentes_sin_informatica_fuera():
 def test_grupos_nuevos():
     assert clasificador.detectar_grupos("tecnico/a titulado/a medio en informatica") == ["A2"]
     assert clasificador.detectar_grupos("gestion universitaria, especialidad informatica") == ["A2"]
+
+
+def test_titulacion_especifica_con_barra():
+    from bot.modelo import Convocatoria
+    c = Convocatoria("T", "BOE", FECHA, "ADMINISTRACIÓN LOCAL",
+                     "Resolución del Ayuntamiento de Las Regueras (Asturias), referente a la convocatoria para proveer una plaza.",
+                     "u", parrafos=["Una plaza de Trabajador/a Social de la plantilla de personal laboral fijo, por el sistema de oposición, en turno libre."])
+    assert not clasificador.clasificar(c).enviar

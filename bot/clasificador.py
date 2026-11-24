@@ -19,6 +19,7 @@ from .modelo import Convocatoria, Resultado
 def norm(s: str) -> str:
     s = unicodedata.normalize("NFKD", s.lower())
     s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = re.sub(r"/(a|as|o|os)\b|\((a|as|o|os)\)", "", s)  # Trabajador/a -> trabajador, Técnico(a) -> tecnico
     return s.replace("«", '"').replace("»", '"')
 
 
