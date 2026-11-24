@@ -138,5 +138,6 @@ fuentes.yaml         lista de boletines y webs
   main.py            CLI (y modo --daemon por si algún día lo pones en un servidor)
 tests/               tests con datos de ejemplo en el formato de la API
 data/                estado en SQLite (lo actualiza el workflow)
-.github/workflows/   ejecución programada en GitHub Actions
+.github/workflows/   pruebas manuales en GitHub Actions (diagnóstico y simulación)
+scripts/mac/         instalación y tarea programada en el Mac (launchd)
 ```
