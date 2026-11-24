@@ -174,3 +174,18 @@ def test_titulacion_especifica_con_barra():
                      "Resolución del Ayuntamiento de Las Regueras (Asturias), referente a la convocatoria para proveer una plaza.",
                      "u", parrafos=["Una plaza de Trabajador/a Social de la plantilla de personal laboral fijo, por el sistema de oposición, en turno libre."])
     assert not clasificador.clasificar(c).enviar
+
+
+def test_programacion_lunes_y_jueves():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from bot.main import toca_ejecutar
+    tz = ZoneInfo("Europe/Madrid")
+    lj = [0, 3]
+    dt = lambda d, h=10: datetime(2026, 11, d, h, 0, tzinfo=tz)  # 23/11/2026 es lunes
+    assert toca_ejecutar(dt(23), None, lj, 9, 0)                    # primera vez
+    assert not toca_ejecutar(dt(24), dt(23, 9), lj, 9, 0)           # martes: ya se hizo el lunes
+    assert toca_ejecutar(dt(26), dt(23, 9), lj, 9, 0)               # jueves 10:00
+    assert not toca_ejecutar(dt(26, 8), dt(23, 9), lj, 9, 0)        # jueves antes de las 9
+    assert toca_ejecutar(dt(28), dt(23, 9), lj, 9, 0)               # Mac apagado el jueves: se hace el sábado
+    assert not toca_ejecutar(dt(28, 11), dt(28), lj, 9, 0)          # y ya no se repite

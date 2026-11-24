@@ -1,3 +1,7 @@
 __pycache__/
 .pytest_cache/
 .env
+.venv/
+logs/
+data/*.sqlite
+data/ultima_ejecucion.txt

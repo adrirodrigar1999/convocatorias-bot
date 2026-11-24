@@ -1,6 +1,7 @@
 """Punto de entrada.
 
   python -m bot.main                       procesa los días pendientes hasta hoy y termina
+  python -m bot.main --programado          revisa solo si toca (DIAS_EJECUCION); lo lanza launchd cada hora en el Mac
   python -m bot.main --daemon              se queda corriendo y revisa cada día a HORA_EJECUCION
   python -m bot.main --fecha 2026-11-24 --dry-run    muestra qué avisaría, sin enviar ni guardar
   python -m bot.main --desde 2026-11-01 --hasta 2026-11-24
@@ -81,7 +82,7 @@ def procesar_dia(nombre: str, fecha: date, store: Store | None, dry_run: bool,
 
 
 # --- Boletines autonómicos/provinciales y webs (lector genérico) ----------------------------
-UMBRAL_AVISO_ROTA = 6   # pasadas seguidas fallando (~2 días) antes de avisar
+UMBRAL_AVISO_ROTA = 2   # revisiones seguidas fallando antes de avisar
 
 
 def _descargar(f: web.Fuente):
@@ -287,6 +288,42 @@ def ejecutar(fechas: list[date] | None, dry_run: bool) -> bool:
     return hoy_hecho
 
 
+DIAS_SEMANA = {"lun": 0, "mar": 1, "mie": 2, "mié": 2, "jue": 3, "vie": 4, "sab": 5, "sáb": 5, "dom": 6}
+
+
+def toca_ejecutar(ahora: datetime, ultima: datetime | None, dias: list[int], hora: int, minuto: int) -> bool:
+    """¿Ha pasado alguna cita (p. ej. lunes o jueves a las 9:00) desde la última ejecución?"""
+    if ultima is None:
+        return True
+    for atras in range(8):
+        d = (ahora - timedelta(days=atras)).date()
+        cita = datetime(d.year, d.month, d.day, hora, minuto, tzinfo=ahora.tzinfo)
+        if d.weekday() in dias and cita <= ahora:
+            return ultima < cita
+    return False
+
+
+def programado() -> None:
+    """Pensado para lanzarse cada hora (launchd): solo trabaja si toca."""
+    import os
+    dias = [DIAS_SEMANA[x.strip().lower()] for x in config.DIAS_EJECUCION.split(",") if x.strip()]
+    h, m = map(int, config.HORA_EJECUCION.split(":"))
+    ruta = config.ULTIMA_EJECUCION_PATH
+    ultima = None
+    if os.path.exists(ruta):
+        with open(ruta) as fh:
+            ultima = datetime.fromisoformat(fh.read().strip())
+    ahora = datetime.now(TZ)
+    if not toca_ejecutar(ahora, ultima, dias, h, m):
+        log.info("No toca todavía (última ejecución: %s)", ultima)
+        return
+    log.info("Toca revisar (última ejecución: %s)", ultima)
+    ejecutar(None, dry_run=False)
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    with open(ruta, "w") as fh:
+        fh.write(ahora.isoformat(timespec="seconds"))
+
+
 def bucle() -> None:
     h, m = map(int, config.HORA_EJECUCION.split(":"))
     log.info("Modo daemon: revisión diaria a las %s (%s)", config.HORA_EJECUCION, config.ZONA_HORARIA)
@@ -309,6 +346,8 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     ap = argparse.ArgumentParser(description="Avisos de convocatorias de empleo público por Telegram")
     ap.add_argument("--daemon", action="store_true")
+    ap.add_argument("--programado", action="store_true",
+                    help="revisa solo si ha pasado un día de DIAS_EJECUCION desde la última vez (Mac)")
     ap.add_argument("--fecha", type=date.fromisoformat)
     ap.add_argument("--desde", type=date.fromisoformat)
     ap.add_argument("--hasta", type=date.fromisoformat)
@@ -333,6 +372,9 @@ def main() -> None:
         return
     if a.daemon:
         bucle()
+        return
+    if a.programado:
+        programado()
         return
 
     fechas = None

@@ -5,13 +5,32 @@ Los secretos (token de Telegram, API key opcional) van en variables de entorno
 """
 import os
 
+
+def _cargar_env() -> None:
+    """Lee el .env de la raíz del proyecto (en el Mac); en GitHub los secretos llegan como variables."""
+    ruta = os.path.join(os.path.dirname(__file__), "..", ".env")
+    if not os.path.exists(ruta):
+        return
+    with open(ruta, encoding="utf-8") as fh:
+        for linea in fh:
+            linea = linea.split(" #")[0].strip()
+            if not linea or linea.startswith("#") or "=" not in linea:
+                continue
+            clave, valor = linea.split("=", 1)
+            os.environ.setdefault(clave.strip(), valor.strip().strip('"').strip("'"))
+
+
+_cargar_env()
+
 # --- Telegram -------------------------------------------------------------
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # --- Programación -----------------------------------------------------------
 # El BOE sale de lunes a sábado sobre las 7:30. Se revisa después.
-HORA_EJECUCION = os.getenv("HORA_EJECUCION", "08:30")
+HORA_EJECUCION = os.getenv("HORA_EJECUCION", "09:00")
+# Modo programado (Mac): días en que toca revisar. Si el Mac está apagado, se hace al encenderlo.
+DIAS_EJECUCION = os.getenv("DIAS_EJECUCION", "lun,jue")
 ZONA_HORARIA = "Europe/Madrid"
 # Mensaje silencioso diario aunque no haya novedades (sirve para saber que el bot sigue vivo)
 RESUMEN_DIARIO = os.getenv("RESUMEN_DIARIO", "1") == "1"
@@ -19,7 +38,9 @@ RESUMEN_DIARIO = os.getenv("RESUMEN_DIARIO", "1") == "1"
 # plazo abierto (20 días hábiles ≈ 4 semanas, así que 45 cubre de sobra los plazos normales).
 DIAS_PRIMERA_EJECUCION = int(os.getenv("DIAS_PRIMERA_EJECUCION", "45"))
 
-DB_PATH = os.getenv("DB_PATH", "data/convocatorias.sqlite")
+_RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DB_PATH = os.getenv("DB_PATH", os.path.join(_RAIZ, "data", "convocatorias.sqlite"))
+ULTIMA_EJECUCION_PATH = os.path.join(os.path.dirname(DB_PATH), "ultima_ejecucion.txt")
 
 # --- Perfil ---------------------------------------------------------------------
 TITULACIONES = [

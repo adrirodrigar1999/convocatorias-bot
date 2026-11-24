@@ -1,12 +1,8 @@
 name: Convocatorias
 
+# El bot se ejecuta en el Mac (scripts/mac). Este workflow queda para pruebas manuales:
+# diagnóstico de fuentes y simulaciones del BOE, sin enviar nada ni guardar estado.
 on:
-  schedule:
-    # GitHub usa hora UTC. El BOE sale de lunes a sábado ~07:30 (Madrid).
-    # Tres pasadas por si GitHub se retrasa o el BOE sale tarde; nunca se repiten avisos.
-    - cron: "17 7 * * 1-6"    # 08:17 en invierno / 09:17 en verano
-    - cron: "43 10 * * 1-6"
-    - cron: "43 16 * * 1-6"
   workflow_dispatch:
     inputs:
       fecha:
@@ -16,14 +12,14 @@ on:
       dry_run:
         description: "Solo mostrar en el log, sin enviar ni guardar"
         type: boolean
-        default: false
+        default: true
       probar_fuentes:
         description: "Diagnóstico de boletines y webs (no envía nada)"
         type: boolean
         default: false
 
 permissions:
-  contents: write   # para guardar data/convocatorias.sqlite en el repo
+  contents: read
 
 concurrency:
   group: convocatorias
@@ -63,12 +59,3 @@ jobs:
           if [ -n "$FECHA" ]; then ARGS="$ARGS --fecha $FECHA"; fi
           if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           python -m bot.main $ARGS
-
-      - name: Guardar estado
-        if: always() && inputs.dry_run != true && inputs.probar_fuentes != true
-        run: |
-          git config user.name "convocatorias-bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/
-          git diff --cached --quiet || git commit -m "Estado $(date -u +%F)"
-          git push

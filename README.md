@@ -1,6 +1,6 @@
 # Bot de convocatorias de empleo público → Telegram
 
-Revisa cada mañana (con GitHub Actions) y te avisa por Telegram de:
+Revisa los boletines (lunes y jueves, desde tu Mac) y te avisa por Telegram de:
 
 - **Asturias, Castilla y León y Cantabria**: cualquier plaza de acceso libre de cualquier organismo
   a la que puedas presentarte con tu grado + máster (también bolsas e interinidades).
@@ -18,7 +18,7 @@ El lector genérico entiende RSS, XML/CSV de datos abiertos, páginas HTML y el 
 boletines que solo publican así. Desde la portada sigue hasta 2 niveles de enlaces tipo «sumario»,
 «último boletín», «empleo», «procesos selectivos» o con la fecha de hoy, y se queda con los anuncios
 de empleo. En la primera pasada de cada fuente manda **un único resumen** con lo que ya había
-publicado; después, un mensaje por anuncio nuevo. Si una fuente falla 6 pasadas seguidas (~2 días),
+publicado; después, un mensaje por anuncio nuevo. Si una fuente falla 2 revisiones seguidas,
 te avisa una vez para que la revises.
 
 Descarta lo que no abre plazo (listas de admitidos, tribunales, nombramientos, correcciones),
@@ -28,44 +28,54 @@ Cada aviso del BOE trae organismo, plazas, grupo, sistema, etiqueta de titulaci�
 ⚠️ revisa), fin de plazo aproximado, dónde están las bases y el enlace. Los de boletines y webs
 traen el título del anuncio, la etiqueta y el enlace.
 
-## Puesta en marcha (GitHub Actions, sin servidor)
+## Puesta en marcha (en el Mac)
 
-1. **Crea el bot de Telegram**: habla con `@BotFather` → `/newbot` → copia el token.
-2. **Saca tu chat_id**: escribe cualquier cosa a tu bot y abre
-   `https://api.telegram.org/bot<TOKEN>/getUpdates` → `"chat":{"id": ...}`.
-   Si prefieres un canal, añade el bot como administrador y usa el id `-100…`.
-3. **Sube este proyecto a un repo privado de GitHub** (por ejemplo `convocatorias-bot`).
-4. En el repo: *Settings → Secrets and variables → Actions → New repository secret*:
-   - `TELEGRAM_TOKEN`
-   - `TELEGRAM_CHAT_ID`
-   - `ANTHROPIC_API_KEY` (opcional)
-5. **Comprueba las fuentes**: *Actions → Convocatorias → Run workflow* marcando **probar_fuentes**.
-   En el resumen de la ejecución sale una tabla con cada boletín/web: si responde, cuántos anuncios
-   de empleo encuentra y un ejemplo. Las marcadas con `*` tienen la URL sin verificar a mano; las que
-   salgan en ❌ o ⚠️ se corrigen en `fuentes.yaml` (o se desactivan con `activa: false`).
-   Después, *Run workflow* con **dry_run** y fecha `2026-11-24` para ver qué avisaría del BOE.
-6. Lanza otra vez *Run workflow* sin *dry_run*: revisará los últimos 45 días y te avisará solo de las
-   convocatorias que siguen con plazo abierto (las que ya cerraron se descartan).
-   A partir de ahí se ejecuta solo de lunes a sábado (`.github/workflows/convocatorias.yml`).
+El bot se ejecuta en tu Mac: **lunes y jueves** a partir de las 9:00. Si ese día el Mac está apagado,
+revisa en cuanto lo enciendas (o lo despiertes) y no se pierde nada: recupera todos los BOE pendientes
+desde la última vez. Desde una conexión española responden boletines que bloquean a los servidores
+de GitHub (BOC de Cantabria, varios BOP de Castilla y León…).
 
-El estado (anuncios ya vistos y días procesados) se guarda en `data/convocatorias.sqlite`, que el
-propio workflow sube al repo tras cada pasada; así nunca se repite un aviso. Si el BOE aún no ha
-salido o falla un envío a Telegram, la pasada siguiente lo reintenta.
+1. **Bot de Telegram**: token de `@BotFather` y tu chat_id (escribe al bot y abre
+   `https://api.telegram.org/bot<TOKEN>/getUpdates`).
+2. **Python 3.10 o superior** (el de macOS se queda corto): `brew install python@3.12`
+3. **Descarga el proyecto en tu carpeta personal** (no en Documentos, Escritorio ni iCloud: macOS no
+   deja que las tareas en segundo plano lean esas carpetas):
+   ```bash
+   cd ~ && git clone https://github.com/adrirodrigar1999/convocatorias-bot.git
+   cd convocatorias-bot
+   cp .env.example .env      # y pon TELEGRAM_TOKEN y TELEGRAM_CHAT_ID
+   ```
+4. **Instala la tarea programada**:
+   ```bash
+   ./scripts/mac/instalar.sh
+   .venv/bin/python -m bot.main --prueba-telegram     # te llega un mensaje de prueba
+   ```
+   Al terminar la instalación arranca la primera revisión: mira 45 días atrás y te avisa de lo que
+   siga con plazo abierto, más un resumen por cada boletín o web.
 
-Coste: cada ejecución tarda unos minutos (son ~110 fuentes); en un repo privado entra de sobra en los 2.000 minutos
-gratuitos al mes de GitHub Actions.
+Cómo funciona: launchd lanza `scripts/mac/ejecutar.sh` al iniciar sesión y cada hora. El script
+actualiza el código con `git pull` (así te llegan las fuentes que se vayan arreglando) y ejecuta
+`python -m bot.main --programado`, que solo trabaja si ha pasado un lunes o jueves (después de las
+9:00) desde la última revisión. El resto de veces termina al instante.
 
-### Probar en local
+- Registro: `logs/bot.log`
+- Cambiar días u hora: `DIAS_EJECUCION` y `HORA_EJECUCION` en `.env`
+- Forzar una revisión ahora: `.venv/bin/python -m bot.main`
+- Quitarlo: `./scripts/mac/desinstalar.sh`
+- El Mac tiene que tener tu sesión iniciada (vale con la pantalla bloqueada o en reposo).
+
+### Pruebas sin enviar nada
 
 ```bash
-pip install -r requirements.txt pytest
-python -m bot.main --fecha 2026-11-24 --dry-run   # qué avisaría del BOE, sin enviar nada
-python -m bot.main --probar-fuentes                # diagnóstico de boletines y webs
-python -m bot.main --probar-fuentes bopa bop-leon  # solo algunas
-python -m bot.main --solo-fuentes --dry-run        # qué avisaría hoy de boletines y webs
-TELEGRAM_TOKEN=... TELEGRAM_CHAT_ID=... python -m bot.main --prueba-telegram
-python -m pytest -q
+.venv/bin/python -m bot.main --fecha 2026-11-24 --dry-run   # qué avisaría del BOE ese día
+.venv/bin/python -m bot.main --probar-fuentes               # diagnóstico de boletines y webs
+.venv/bin/python -m bot.main --probar-fuentes bopa bop-leon # solo algunas
+.venv/bin/python -m bot.main --solo-fuentes --dry-run       # qué avisaría hoy de boletines y webs
+.venv/bin/python -m pytest -q                                # tests
 ```
+
+En GitHub, *Actions → Convocatorias → Run workflow* hace lo mismo (diagnóstico o simulación del BOE)
+sin tocar tu Mac; ya no se ejecuta solo.
 
 ## Ajustes (`bot/config.py`)
 
