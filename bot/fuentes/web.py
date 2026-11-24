@@ -73,6 +73,29 @@ NO_EMPLEO = re.compile(
     r"|convenio colectivo|urbanis|licencia|cobranza|recaudaci|tribut|noticia|agenda|eventos?\b",
     re.I,
 )
+# Documentos de un proceso ya en marcha (no son convocatorias nuevas)
+TRAMITE = re.compile(
+    r"calificaci|resultados?\b|nota (rectificativa|aclaratoria|informativa)|situaci[oó]n de la bolsa|^normas\b"
+    r"|criterios de|llamamiento|propuesta de (contrataci|nombramiento)|omitid|plantilla (de respuestas|correctora)"
+    r"|cuestionario|\bex[aá]menes?\b|ejercicio|temario|baremaci|valoraci[oó]n|subsanaci|alegaci|acuerdo adoptado"
+    r"|mesa (de|general)|modificaci|instrucciones|\banexos?\b|modelo de|formulario|movilidad|carrera (y|profesional)"
+    r"|jefaturas?|supervisi|coordinaci|desarrollo profesional|bases generales|toma de posesi|adjudica|admitid|excluid"
+    r"|aprobad|nombramient|tribunal|correcci[oó]n|desiert|renuncia|lista (provisional|definitiva)|listado",
+    re.I,
+)
+# Para webs: si el texto es corto, debe nombrar un puesto o cuerpo
+PUESTO = re.compile(
+    r"t[eé]cnic|analista|programador|ingenier|auxiliar|administrativ|gestor|gesti[oó]n|celador|enfermer|m[eé]dic"
+    r"|operari|oficial|polic|bomber|conductor|escala|cuerpo|categor[ií]a|subgrupo|grupo [a-e]|plazas? de|puesto de"
+    r"|informátic|informatic|sistemas|ciberseguridad|desarroll|datos|titulad|ordenanza|subalterno|limpiad|pe[oó]n",
+    re.I,
+)
+INICIO_PDF = re.compile(
+    r"^[\d\.\-\s/]*(resoluci|anuncio|edicto|bases|convocatoria|decreto|orden\b|acuerdo|extracto|ayuntamiento"
+    r"|diputaci|aprobaci|oferta|proceso|procedimiento|lista|bolsa)",
+    re.I,
+)
+TAMANO = re.compile(r"\(\s*(pdf|docx?|odt)\s*,?\s*[\d.,]+\s*[kKmM][bB]\s*\)|\b\d+[.,]?\d*\s*[kKmM][bB]\b")
 NAV_CLASES = ("menu", "nav", "footer", "header", "breadcrumb", "cookie", "migas", "dropdown", "sidebar-menu")
 RUIDO = re.compile(
     r"^(inicio|contacto|aviso legal|cookies|accesibilidad|mapa web|pol[ií]tica de privacidad|buscar|"
@@ -110,6 +133,7 @@ class Item:
     texto: str
     url: str
     nav: bool = False   # enlace de menú/cabecera/pie: sirve para navegar, no es un anuncio
+    desde_pdf: bool = False
 
     @property
     def clave(self) -> str:
@@ -255,13 +279,43 @@ def _parsear_pdf(contenido: bytes, url: str) -> list[Item]:
     for l in unidas:
         l = re.sub(r"\.{3,}\s*\d+\s*$", "", l).strip()  # "Título ........ 23" del sumario
         if 25 <= len(l) <= 400:
-            items.append(Item(l, url))
+            items.append(Item(l, url, desde_pdf=True))
     return items
 
 
 # --- HTML ---------------------------------------------------------------------------
+GENERICO = re.compile(
+    r"\.pdf|\.html?\b|\bkb\b|\bmb\b|^pdf$|^html|otros formatos|^descargar|^ver (documento|anuncio|disposici|pdf|m[aá]s)"
+    r"|^ir al detalle$|^\d+$|^(aqu[ií]|enlace|documento|anuncio|texto completo|leer m[aá]s)$",
+    re.I,
+)
+
+
+def _texto_previo(a, maximo: int = 300) -> str:
+    """Texto que precede al enlace (títulos de sumario cuyo enlace es solo «PDF»)."""
+    trozos, total = [], 0
+    for nodo in a.find_all_previous(string=True):
+        padre = nodo.parent
+        if padre is not None and padre.name in ("a", "script", "style"):
+            if trozos:
+                break  # el anterior enlace marca el fin del título
+            continue
+        t = _limpio(str(nodo))
+        if not t:
+            continue
+        trozos.append(t)
+        total += len(t)
+        if total >= maximo or (padre is not None and padre.name in ("h1", "h2", "h3", "h4", "li", "p", "td")):
+            break
+    return _limpio(" ".join(reversed(trozos)))[:400]
+
+
 def _texto_enlace(a) -> str:
     propio = _limpio(a.get_text(" "))
+    if GENERICO.search(propio) or len(propio) < 25:
+        previo = _texto_previo(a)
+        if len(previo) >= 25 and not GENERICO.search(previo[:40]):
+            return previo
     if len(propio) >= 25 and not RUIDO.match(propio):
         return propio[:400]
     padre = a
@@ -398,17 +452,31 @@ def obtener(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item]
     diag.muestra = [f"{i.texto[:110]} -> {i.url[:90]}" for i in items if not i.nav and len(i.texto) > 30][:12]
     # Filtro de empleo (los boletines publican de todo)
     filtrados, claves = [], set()
+    anio = hoy.year
+    excluir = re.compile(f.extra["excluir"], re.I) if f.extra.get("excluir") else None
     for it in items:
-        if it.clave in claves:
+        it.texto = _limpio(TAMANO.sub("", it.texto)).strip(" -–·")
+        t = it.texto
+        if it.clave in claves or t.lower() in claves:
+            continue  # mismo anuncio en otro formato (PDF / HTML)
+        if it.nav or RUIDO.match(t) or MENU.match(t.strip(" .:")) or NO_EMPLEO.search(t) or TRAMITE.search(t):
             continue
-        if it.nav or RUIDO.match(it.texto) or MENU.match(it.texto.strip(" .:")) or NO_EMPLEO.search(it.texto):
+        if excluir and excluir.search(t):
             continue
+        if it.url.lower().split("?")[0].endswith(".pdf") and it.desde_pdf and not INICIO_PDF.match(t):
+            continue  # frase suelta del interior de un PDF, no una entrada de sumario
+        if len(t.split()) <= 8 and not PUESTO.search(t):
+            continue  # etiquetas tipo «Convocatoria ordinaria», «Contratación temporal»
+        anios = [int(x) for x in re.findall(r"\b(20\d\d)\b", t)]
+        if anios and max(anios) <= anio - 2:
+            continue  # histórico
         if f.informatica:
             ok = CONVOCATORIA.search(it.texto) or EMPLEO_WEB_EXTRA.search(it.texto)
         else:
             ok = CONVOCATORIA.search(it.texto)
         if ok and len(it.texto) >= 20:
             claves.add(it.clave)
+            claves.add(t.lower())
             filtrados.append(it)
     diag.items = len(filtrados)
     if diag.enlaces == 0:

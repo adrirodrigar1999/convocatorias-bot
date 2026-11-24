@@ -9,6 +9,7 @@
 #   verificada: true   -> URL comprobada a mano; el resto se valida con --probar-fuentes
 #   activa: false      -> desactivarla sin borrarla
 #   verificar_ssl: false -> solo para webs públicas con el certificado mal instalado
+#   excluir: regex de textos a ignorar en esa fuente
 #
 # Para añadir una fuente basta con copiar un bloque. Si una deja de funcionar, el bot avisa.
 
@@ -90,7 +91,7 @@
 - {id: ema-gijon, nombre: EMA Gijón (aguas), tipo: web, region: Asturias, url: "https://www.emagijon.es/"}
 - {id: divertia, nombre: Divertia Gijón, tipo: web, region: Asturias, url: "https://www.divertia.gijon.es/"}
 - {id: emulsa, nombre: Emulsa Gijón, tipo: web, region: Asturias, url: "https://www.emulsa.org/", verificar_ssl: false}
-- {id: uniovi, nombre: Universidad de Oviedo, tipo: web, region: Asturias, url: "https://www.uniovi.es/"}
+- {id: uniovi, nombre: Universidad de Oviedo, tipo: web, region: Asturias, url: "https://www.uniovi.es/", excluir: "-Bolsa \\d{4}-\\d+|profesorado|\\bPDI\\b"}
 - {id: sespa, nombre: SESPA (Astursalud), tipo: web, region: Asturias, url: "https://www.astursalud.es/", seguir: "procesos selectivos|bolsa|ope|empleo|profesionales"}
 - {id: puerto-gijon, nombre: Puerto de Gijón, tipo: web, region: Asturias, url: "https://www.puertogijon.es/"}
 - {id: puerto-aviles, nombre: Puerto de Avilés, tipo: web, region: Asturias, url: "https://www.puertoaviles.es/"}

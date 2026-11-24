@@ -155,3 +155,24 @@ def test_flujo_completo(tmp_path, monkeypatch):
     assert len(nuevos) == 1 and "Ver anuncio" in nuevos[0]
     avisos_rota = [t for t in enviados if "sin responder" in t]
     assert len(avisos_rota) == 1 and "rota" in avisos_rota[0]
+
+
+def test_ruido_de_webs_fuera():
+    html = """<html><body><nav><a href="/empleo">Empleo público</a></nav><ul>
+    <li><a href="/a.pdf">BASES DE LA CONVOCATORIA ( pdf , 316,6 kB )</a></li>
+    <li><a href="/b.pdf">Calificación final de la convocatoria y propuesta de contratación Perfil Técnico de Desarrollo</a></li>
+    <li><a href="/c.pdf">Situación de la Bolsa el 05-02-2025 (128 KB)</a></li>
+    <li><a href="/d">Contratación Temporal</a></li>
+    <li><a href="/e">Normas de Constitución, funcionamiento y gestión de las Bolsas de Empleo (Resolución de 1 de agosto de 2017)</a></li>
+    <li><a href="/f">Convocatoria de bolsa de empleo de Técnico/a de Sistemas Informáticos</a></li>
+    </ul>
+    <p>ORDEN PRE/2/2026 por la que se convoca proceso selectivo para el Cuerpo de Gestión de Sistemas e Informática.</p>
+    <a href="/g.pdf">BOCYL-D-24112026-227-5.pdf - 829 KB</a> <a href="/g.html">html y otros formatos</a>
+    </body></html>""".encode()
+    PAGINAS["https://ruido.es/"] = (html, "text/html")
+    f = Fuente("ruido", "Ruido", "web", "https://ruido.es/", region="Asturias")
+    items, _ = web.obtener(f, Sesion(), HOY)
+    textos = [i.texto for i in items]
+    assert any("Sistemas Informáticos" in t for t in textos)
+    assert any(t.startswith("ORDEN PRE/2/2026") for t in textos)   # título tomado del texto anterior al enlace PDF
+    assert len(items) == 2, textos
