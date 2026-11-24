@@ -1,0 +1,74 @@
+name: Convocatorias
+
+on:
+  schedule:
+    # GitHub usa hora UTC. El BOE sale de lunes a sábado ~07:30 (Madrid).
+    # Tres pasadas por si GitHub se retrasa o el BOE sale tarde; nunca se repiten avisos.
+    - cron: "17 7 * * 1-6"    # 08:17 en invierno / 09:17 en verano
+    - cron: "43 10 * * 1-6"
+    - cron: "43 16 * * 1-6"
+  workflow_dispatch:
+    inputs:
+      fecha:
+        description: "Fecha concreta AAAA-MM-DD (vacío = días pendientes)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Solo mostrar en el log, sin enviar ni guardar"
+        type: boolean
+        default: false
+      probar_fuentes:
+        description: "Diagnóstico de boletines y webs (no envía nada)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # para guardar data/convocatorias.sqlite en el repo
+
+concurrency:
+  group: convocatorias
+  cancel-in-progress: false
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt pytest
+
+      - name: Tests
+        run: python -m pytest -q
+
+      - name: Diagnóstico de fuentes
+        if: inputs.probar_fuentes == true
+        run: python -m bot.main --probar-fuentes
+
+      - name: Revisar boletines
+        if: inputs.probar_fuentes != true
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FECHA: ${{ inputs.fecha }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          ARGS=""
+          if [ -n "$FECHA" ]; then ARGS="$ARGS --fecha $FECHA"; fi
+          if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          python -m bot.main $ARGS
+
+      - name: Guardar estado
+        if: always() && inputs.dry_run != true && inputs.probar_fuentes != true
+        run: |
+          git config user.name "convocatorias-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "Estado $(date -u +%F)"
+          git push

@@ -1,0 +1,6 @@
+requests>=2.31
+tzdata
+beautifulsoup4>=4.12
+lxml>=5
+pypdf>=4
+pyyaml>=6
