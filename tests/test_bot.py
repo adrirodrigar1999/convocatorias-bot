@@ -205,3 +205,22 @@ def test_asturias_solo_oficina_a1_a2(plaza, enviar):
                      "Resolución del Ayuntamiento de Siero (Asturias), referente a la convocatoria para proveer una plaza.",
                      "u", parrafos=[f"{plaza}, por el sistema de oposición, en turno libre.", BOE_FIN])
     assert clasificador.clasificar(c).enviar is enviar
+
+
+
+def test_ministerio_transformacion_digital_no_es_informatica():
+    from bot.modelo import Convocatoria
+    c = Convocatoria(
+        "X1", "BOE", FECHA, "MINISTERIO DE HACIENDA",
+        "Resolución de 19 de octubre de 2026, de la Delegación Especial del Estado en el Consorcio Zona Franca de Cádiz, por la que se convoca proceso selectivo, por el sistema general de acceso libre, para la provisión de plazas de personal laboral fijo, Administrativo/a de Obra y Mantenimiento.",
+        "u", parrafos=["Con el fin de atender las necesidades de personal, previo informe favorable del Ministerio para la Transformación Digital y de la Función Pública, se convoca proceso selectivo.", BOE_FIN])
+    assert not clasificador.clasificar(c).enviar
+
+
+def test_concurso_de_puesto_no_es_nueva():
+    from bot.modelo import Convocatoria
+    c = Convocatoria(
+        "X2", "BOE", FECHA, "ADMINISTRACIÓN LOCAL",
+        "Resolución de 9 de noviembre de 2026, del Ayuntamiento de Villaviciosa (Asturias), referente a la convocatoria para proveer puesto de trabajo por el sistema de concurso.",
+        "u", parrafos=["Un puesto de Coordinador/a de Servicios Informáticos, perteneciente a la escala de Administración Especial.", BOE_FIN])
+    assert not clasificador.clasificar(c).enviar

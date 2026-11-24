@@ -30,6 +30,7 @@ def _rx(patron: str) -> re.Pattern:
 # --- ¿Es una convocatoria nueva? ------------------------------------------------
 NO_NUEVA = _rx(
     r"libre designacion|concurso de traslados|provision de puestos|concurso especifico"
+    r"|proveer puestos? de trabajo por (el sistema de )?concurso"
     r"|concurso general de meritos|concurso de meritos|turno de movilidad|concurso de movilidad"
     r"|movilidad interadministrativa|admitid|excluid"
     r"|relacion de aprobados|lista de aprobados|aspirantes aprobados|se nombra|nombramiento"
@@ -69,6 +70,13 @@ INFORMATICA = _rx(
     r"|redes informaticas|ciencia de datos|cientific[oa] de datos|inteligencia artificial"
     r"|tecnic[oa] de sistemas|microinformatica|digitalizacion|administracion electronica"
     r"|\bsti\b|\bstic\b|\btgm\b.{0,20}sistemas|sistemas y aplicaciones"
+)
+# Nombres de órganos que mencionan lo digital sin que la plaza sea de informática
+NO_ES_INFO = _rx(
+    r"ministerio (para la |de )?transformacion digital( y de la funcion publica)?"
+    r"|secretaria de estado de digitalizacion e inteligencia artificial"
+    r"|consejeria de [a-z ,]{0,60}?(transformacion digital|digitalizacion)"
+    r"|por medios electronicos|sede electronica|registro electronico"
 )
 
 # --- Titulación -----------------------------------------------------------------------
@@ -347,7 +355,9 @@ def clasificar(c: Convocatoria, region=AUTO, exigir_convocatoria: bool = True,
         if PLAZA_EXCLUIR.search(n):
             descartes.append("movilidad")
             continue
-        es_info = bool(todo_informatica or INFORMATICA.search(n) or (not plazas_parr and INFORMATICA.search(titulo_n)))
+        n_info = NO_ES_INFO.sub(" ", n)
+        es_info = bool(todo_informatica or INFORMATICA.search(n_info)
+                       or (not plazas_parr and INFORMATICA.search(NO_ES_INFO.sub(" ", titulo_n))))
         grupos = detectar_grupos(n)
         tit, nota = evaluar_titulacion(n, grupos, es_info)
         if tit == "no":
