@@ -19,3 +19,17 @@
   fuentes: [bop-guadalajara]
   urls:
     - https://www.dguadalajara.es/web/guest/tablon-informativo
+
+# En el BOCM el sumario a veces solo dice «Guadarrama. Ofertas de empleo. Proceso selectivo»,
+# así que basta con que sea de Guadarrama y hable de empleo (puede colarse algún otro proceso del Ayto.).
+- id: gestion-informatica-guadarrama-2026
+  nombre: Técnico/a de Gestión Informática · Ayto. de Guadarrama
+  buscar: '(?=.*guadarrama)(?=.*(ofertas? de empleo|proceso selectivo|admitidos|tribunal|gestion\W+informatica))'
+  hasta: 2027-12-31
+  fuentes: [bocm]
+
+- id: bolsa-tm-informatica-manises-2026
+  nombre: Bolsa de Técnico/a Medio/a de Informática · Ayto. de Manises
+  buscar: '(?=.*manises)(?=.*informatic)'
+  hasta: 2027-12-31
+  fuentes: [bop-valencia, dogv]
