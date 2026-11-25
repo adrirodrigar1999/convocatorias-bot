@@ -41,6 +41,7 @@ DIAS_PRIMERA_EJECUCION = int(os.getenv("DIAS_PRIMERA_EJECUCION", "45"))
 _RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_PATH = os.getenv("DB_PATH", os.path.join(_RAIZ, "data", "convocatorias.sqlite"))
 ULTIMA_EJECUCION_PATH = os.path.join(os.path.dirname(DB_PATH), "ultima_ejecucion.txt")
+ULTIMO_SEGUIMIENTO_PATH = os.path.join(os.path.dirname(DB_PATH), "ultimo_seguimiento.txt")
 
 # --- Perfil ---------------------------------------------------------------------
 TITULACIONES = [

@@ -32,6 +32,17 @@ Cada aviso del BOE trae organismo, plazas, grupo, sistema, etiqueta de titulaci�
 ⚠️ revisa), fin de plazo aproximado, dónde están las bases y el enlace. Los de boletines y webs
 traen el título del anuncio, la etiqueta y el enlace.
 
+## Seguimiento de tus procesos (`seguimiento.yaml`)
+
+Para las oposiciones a las que ya te has presentado, el bot mira **cada día** (desde las 9:00, si el
+Mac está encendido) los boletines y tablones indicados y te avisa con 📌 de **cualquier** anuncio nuevo
+del proceso: lista de admitidos, tribunal, fecha de examen, notas, bolsa… (justo lo que la búsqueda
+de convocatorias descarta). Cada anuncio se avisa una sola vez.
+
+Para añadir un proceso, copia un bloque en `seguimiento.yaml` con su `buscar` (palabras del nombre de
+la plaza), las `fuentes` de `fuentes.yaml` donde se publica y, si tiene, la página del tablón en `urls`.
+Pruébalo con `.venv/bin/python -m bot.main --seguimiento --dry-run`.
+
 ## Puesta en marcha (en el Mac)
 
 El bot se ejecuta en tu Mac: **lunes y jueves** a partir de las 9:00. Si ese día el Mac está apagado,

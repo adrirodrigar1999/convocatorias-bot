@@ -1,0 +1,21 @@
+# Procesos selectivos a los que te has presentado y que el bot vigila a diario.
+#
+# A diferencia de la búsqueda de convocatorias, aquí se avisa de TODO lo que salga del proceso
+# (listas de admitidos, tribunal, fecha de examen, notas, bolsa...), aunque no abra plazo.
+#
+#   id        identificador corto (no lo cambies: es la memoria de lo ya avisado)
+#   nombre    cómo aparece en el aviso
+#   buscar    expresión regular (sin tildes, sin distinguir mayúsculas) que debe aparecer en el anuncio
+#   excluir   (opcional) expresión que descarta el anuncio aunque cumpla «buscar»
+#   hasta     (opcional) fecha a partir de la cual se deja de vigilar
+#   fuentes   ids de fuentes.yaml en las que mirar (sus sumarios del día)
+#   urls      (opcional) páginas concretas a mirar tal cual, sin seguir enlaces (tablones de anuncios...)
+
+- id: tai-dipu-guadalajara-2026
+  nombre: Técnico/a Auxiliar Informática · Diputación de Guadalajara
+  buscar: 'auxiliar\W+(de\W+)?informatica|\btai\b'
+  excluir: 'ayuntamiento'
+  hasta: 2027-12-31
+  fuentes: [bop-guadalajara]
+  urls:
+    - https://www.dguadalajara.es/web/guest/tablon-informativo

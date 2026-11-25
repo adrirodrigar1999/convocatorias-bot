@@ -9,6 +9,7 @@
   python -m bot.main --reset               borra los mensajes enviados y reinicia el estado
   python -m bot.main --probar-fuentes [id ...]   diagnóstico de boletines y webs
   python -m bot.main --solo-fuentes --dry-run    qué avisaría hoy de boletines y webs
+  python -m bot.main --seguimiento [--dry-run]   revisa ya los procesos de seguimiento.yaml
 """
 import argparse
 import logging
@@ -18,7 +19,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from . import clasificador, config, llm, telegram
+from . import clasificador, config, llm, seguimiento, telegram
 from concurrent.futures import ThreadPoolExecutor
 
 from .fuentes import FUENTES, cargar_fuentes
@@ -330,9 +331,32 @@ def toca_ejecutar(ahora: datetime, ultima: datetime | None, dias: list[int], hor
     return False
 
 
+def seguimiento_diario(ahora: datetime) -> None:
+    """Los procesos a los que te has presentado se miran cada día (desde HORA_EJECUCION), no solo lunes y jueves."""
+    import os
+    h, m = map(int, config.HORA_EJECUCION.split(":"))
+    if (ahora.hour, ahora.minute) < (h, m):
+        return
+    ruta = config.ULTIMO_SEGUIMIENTO_PATH
+    if os.path.exists(ruta):
+        with open(ruta) as fh:
+            if fh.read().strip() == ahora.date().isoformat():
+                return
+    try:
+        seguimiento.revisar(Store(config.DB_PATH), ahora.date())
+    except Exception as e:
+        log.exception("Error en el seguimiento de procesos")
+        telegram.enviar(f"⚠️ Error revisando tus procesos: {e}", silencioso=True)
+        return
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    with open(ruta, "w") as fh:
+        fh.write(ahora.date().isoformat())
+
+
 def programado() -> None:
     """Pensado para lanzarse cada hora (launchd): solo trabaja si toca."""
     import os
+    seguimiento_diario(datetime.now(TZ))
     dias = [DIAS_SEMANA[x.strip().lower()] for x in config.DIAS_EJECUCION.split(",") if x.strip()]
     h, m = map(int, config.HORA_EJECUCION.split(":"))
     ruta = config.ULTIMA_EJECUCION_PATH
@@ -360,7 +384,7 @@ def resetear(confirmado: bool = False) -> None:
             print("Cancelado.")
             return
     borrados = telegram.borrar_mensajes()
-    for ruta in (config.DB_PATH, config.ULTIMA_EJECUCION_PATH):
+    for ruta in (config.DB_PATH, config.ULTIMA_EJECUCION_PATH, config.ULTIMO_SEGUIMIENTO_PATH):
         if os.path.exists(ruta):
             os.remove(ruta)
     print(f"Hecho: chat limpiado (últimos {borrados} mensajes) y estado del bot reiniciado.")
@@ -401,6 +425,7 @@ def main() -> None:
     ap.add_argument("--probar-fuentes", nargs="*", metavar="ID",
                     help="diagnóstico de boletines/webs (todas o las indicadas)")
     ap.add_argument("--solo-fuentes", action="store_true", help="revisa boletines/webs sin el BOE")
+    ap.add_argument("--seguimiento", action="store_true", help="revisa ya los procesos de seguimiento.yaml")
     a = ap.parse_args()
 
     if a.reset:
@@ -408,6 +433,9 @@ def main() -> None:
         return
     if a.probar_fuentes is not None:
         probar_fuentes(a.probar_fuentes or None)
+        return
+    if a.seguimiento:
+        seguimiento.revisar(None if a.dry_run else Store(config.DB_PATH), hoy(), a.dry_run)
         return
     if a.solo_fuentes:
         store = None if a.dry_run else Store(config.DB_PATH)

@@ -5,3 +5,4 @@ __pycache__/
 logs/
 data/*.sqlite
 data/ultima_ejecucion.txt
+data/ultimo_seguimiento.txt

@@ -395,7 +395,11 @@ def _procesar(session, url: str, r: requests.Response, hoy: date, diag: Diagnost
     return _enlaces_html(r.content, url)
 
 
-def obtener(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item], Diagnostico]:
+def obtener_crudo(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item], Diagnostico]:
+    """Todo lo que publica la fuente (siguiendo sumarios), sin el filtro de empleo.
+
+    Lo usa también el seguimiento de procesos, que necesita ver listas de admitidos, tribunales...
+    """
     diag = Diagnostico()
     url = expandir_url(f.url, hoy)
     r = _get(session, url, f.verificar_ssl)
@@ -453,6 +457,11 @@ def obtener(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item]
 
     diag.enlaces = len(items)
     diag.muestra = [f"{i.texto[:110]} -> {i.url[:90]}" for i in items if not i.nav and len(i.texto) > 30][:12]
+    return items, diag
+
+
+def obtener(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item], Diagnostico]:
+    items, diag = obtener_crudo(f, session, hoy)
     # Filtro de empleo (los boletines publican de todo)
     filtrados, claves = [], set()
     anio = hoy.year
