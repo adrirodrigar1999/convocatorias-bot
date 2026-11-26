@@ -234,3 +234,30 @@ def test_jsonapi_drupal_gijon():
     assert "11/12/2026" in items[0].texto
     assert items[0].url == "https://www.gijon.es/es/bolsa-tecnico-gestion"
     assert web._parsear_jsonapi(b"<html></html>", "x") is None
+
+
+def test_meta_refresh_y_frameset():
+    from bot.fuentes import web
+
+    class R:
+        def __init__(self, url, contenido):
+            self.url, self.content, self.headers = url, contenido, {"content-type": "text/html"}
+    r = R("https://boletin.dguadalajara.es/",
+          b"<html><head><META HTTP-EQUIV='Refresh' CONTENT='0; URL=https://boletin.dguadalajara.es/boletin/'></head><body></body></html>")
+    assert web._redireccion_html(r) == "https://boletin.dguadalajara.es/boletin/"
+    r = R("https://www.boplaspalmas.net/nbop2/index.php", b"<html><frameset rows='80,*,40'><frame src='cab.php'>"
+          b"<frame src='main1.php'><frame src='pie.php'></frameset></html>")
+    assert web._redireccion_html(r) == "https://www.boplaspalmas.net/nbop2/main1.php"
+    assert web._redireccion_html(R("https://x.es/", b"<html><body><a href='a'>a</a></body></html>")) is None
+
+
+def test_json_generico_bop_ourense():
+    import json
+    from bot.fuentes import web
+    doc = [{"boletin": {"numeroBop": 227, "edictos": [
+        {"id": 1, "sumarioCas": "Convocatoria de una plaza de Técnico/a de Informática, Concello de Verín",
+         "sumario": "CONVOCATORIA"},
+        {"id": 2, "sumarioCas": "Convenio Colectivo de la empresa Comar Orense, S.L."}]}}]
+    items = web._parsear_jsonapi(json.dumps(doc).encode(), "https://bop.depourense.es/portalapi/x")
+    assert [i.texto[:20] for i in items] == ["Convocatoria de una ", "Convenio Colectivo d"]
+    assert items[0].url == "https://bop.depourense.es/portalapi/x"

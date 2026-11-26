@@ -37,12 +37,13 @@ HEADERS = {
 TIMEOUT = 40
 MAX_PDF_BYTES = 25 * 1024 * 1024
 MAX_PDF_PAGINAS = 12
-MAX_SALTOS = 6
+MAX_SALTOS = 12
 
 SEGUIR_BOLETIN = (
     r"sumario|[uú]ltimo (bolet[ií]n|n[uú]mero|bop)|bolet[ií]n (de hoy|del d[ií]a|actual)"
     r"|edici[oó]n (de hoy|del d[ií]a|actual)|bop de hoy|consultar? (el )?bolet[ií]n|ver bolet[ií]n"
     r"|autoridades y personal|oposiciones y concursos|empleo p[uú]blico"
+    r"|butllet[ií] del dia|[uú]ltim n[uú]mero|^avui\b|sumari del dia"
 )
 SEGUIR_WEB = (
     r"empleo|trabaja con nosotros|trabajar en|procesos? (de )?selecci|procesos selectivos|oposiciones"
@@ -163,9 +164,17 @@ def expandir_url(url: str, hoy: date) -> str:
                .replace("{dd}", f"{hoy:%d}").replace("{yyyymmdd}", f"{hoy:%Y%m%d}"))
 
 
+DIAS_ATRAS = 4   # el bot revisa lunes y jueves: hay que mirar también los boletines de los días anteriores
+
+
 def _fechas_hoy(hoy: date) -> list[str]:
-    return [f"{hoy:%Y%m%d}", f"{hoy:%Y/%m/%d}", f"{hoy:%d-%m-%Y}", f"{hoy:%d/%m/%Y}", f"{hoy:%Y-%m-%d}",
-            f"{hoy:%d%m%Y}", f"{hoy:%d-%m-%y}"]
+    from datetime import timedelta
+    fechas = []
+    for i in range(DIAS_ATRAS + 1):
+        d = hoy - timedelta(days=i)
+        fechas += [f"{d:%Y%m%d}", f"{d:%Y/%m/%d}", f"{d:%d-%m-%Y}", f"{d:%d/%m/%Y}", f"{d:%Y-%m-%d}",
+                   f"{d:%d%m%Y}", f"{d:%d-%m-%y}"]
+    return fechas
 
 
 def _limpio(s: str) -> str:
@@ -246,8 +255,8 @@ def _parsear_jsonapi(contenido: bytes, base: str) -> list[Item] | None:
     except ValueError:
         return None
     datos = doc.get("data") if isinstance(doc, dict) else None
-    if not isinstance(datos, list):
-        return None
+    if not isinstance(datos, list) or not all(isinstance(d, dict) and "attributes" in d for d in datos[:3]):
+        return _parsear_json_generico(doc, base)
     items = []
     for d in datos:
         a = (d or {}).get("attributes") or {}
@@ -281,6 +290,35 @@ def _parsear_jsonapi(contenido: bytes, base: str) -> list[Item] | None:
             host = urlparse(base)
             url = f"{host.scheme}://{host.netloc.replace('drupal.', 'www.')}/es{alias}" if alias else base
         items.append(Item(". ".join(partes), url))
+    return items
+
+
+CLAVES_TEXTO = ("sumarioCas", "titulo", "title", "asunto", "sumarioEdicto", "sumario", "descripcion", "nombre")
+CLAVES_URL = ("url", "enlace", "link", "href", "urlPdf", "pdf")
+
+
+def _parsear_json_generico(doc, base: str) -> list[Item]:
+    """APIs JSON de boletines (p. ej. BOP Ourense): recoge los textos largos de cada objeto."""
+    items, vistos = [], set()
+
+    def recorrer(x, profundidad=0):
+        if profundidad > 8:
+            return
+        if isinstance(x, dict):
+            texto = next((x[k] for k in CLAVES_TEXTO if isinstance(x.get(k), str) and len(x[k].strip()) >= 25), None)
+            if texto:
+                url = next((x[k] for k in CLAVES_URL if isinstance(x.get(k), str) and x[k].startswith("http")), base)
+                t = _limpio(BeautifulSoup(texto, "lxml").get_text(" ")) if "<" in texto else _limpio(texto)
+                if t not in vistos:
+                    vistos.add(t)
+                    items.append(Item(t[:400], url))
+            for v in x.values():
+                recorrer(v, profundidad + 1)
+        elif isinstance(x, list):
+            for v in x:
+                recorrer(v, profundidad + 1)
+
+    recorrer(doc)
     return items
 
 
@@ -407,10 +445,16 @@ def _enlaces_html(html: bytes, base: str) -> tuple[list[Item], str]:
     items, vistos = [], set()
     for a in sopa.find_all("a", href=True):
         href = a["href"].strip()
-        if href.startswith(("mailto:", "javascript:", "tel:")) or href == "#":
+        if href.startswith(("mailto:", "tel:")):
             continue
-        url = urljoin(base, href)
         texto = _texto_enlace(a)
+        if href.startswith("javascript:") or href.startswith("#"):
+            # anuncios que se abren con JavaScript (p. ej. BOP Zaragoza): el título vale, el enlace es la página
+            if not texto or len(texto) < 40:
+                continue
+            url = base
+        else:
+            url = urljoin(base, href)
         if not texto or (url, texto) in vistos:
             continue
         vistos.add((url, texto))
@@ -451,9 +495,36 @@ def _get(session: requests.Session, url: str, verificar: bool = True,
          tls_antiguo: bool = False) -> requests.Response:
     if tls_antiguo:
         session, verificar = _sesion_antigua(), False
-    r = session.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True, verify=verificar)
-    r.raise_for_status()
+    for _ in range(3):
+        r = session.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True, verify=verificar)
+        r.raise_for_status()
+        sig = _redireccion_html(r)
+        if not sig or sig == r.url:
+            return r
+        url = sig
     return r
+
+
+RX_REFRESH = re.compile(rb"""<meta[^>]+http-equiv=["']?refresh["']?[^>]*content=["']?\s*\d+\s*;\s*url=([^"'>\s]+)""", re.I)
+RX_FRAME = re.compile(rb"""<frame\b[^>]*\bsrc=["']?([^"'>\s]+)""", re.I)
+
+
+def _redireccion_html(r: requests.Response) -> str | None:
+    """Páginas que solo redirigen con <meta refresh> o son un <frameset>: devuelve la página real."""
+    if _es_pdf(r) or len(r.content) > 20000:
+        return None
+    cabeza = r.content[:20000]
+    m = RX_REFRESH.search(cabeza)
+    if not m and b"<frameset" in cabeza.lower():
+        frames = RX_FRAME.findall(cabeza)
+        # se descartan cabecera, pie y menú; queda el marco del contenido
+        utiles = [f for f in frames if not re.search(rb"cab|pie|head|foot|top|menu|nav|banner", f, re.I)]
+        m_url = (utiles or frames or [None])[0]
+    else:
+        m_url = m.group(1) if m else None
+    if not m_url:
+        return None
+    return urljoin(r.url, m_url.decode("latin-1").strip())
 
 
 def _es_pdf(r: requests.Response) -> bool:
@@ -487,10 +558,23 @@ def obtener_crudo(f: Fuente, session: requests.Session, hoy: date) -> tuple[list
     Lo usa también el seguimiento de procesos, que necesita ver listas de admitidos, tribunales...
     """
     diag = Diagnostico()
-    url = expandir_url(f.url, hoy)
-    r = _get(session, url, f.verificar_ssl, f.tls_antiguo)
-    diag.paginas = 1
-    items, rss = _procesar(session, url, r, hoy, diag)
+    from datetime import timedelta
+    dias = range(DIAS_ATRAS + 1) if "{" in f.url else range(1)
+    urls = list(dict.fromkeys(expandir_url(f.url, hoy - timedelta(days=i)) for i in dias))
+    url = urls[0]
+    items, rss, error, alguna = [], "", None, False
+    for u in urls:   # con plantilla de fecha: hoy y los días anteriores (días sin boletín no cuentan como fallo)
+        try:
+            r = _get(session, u, f.verificar_ssl, f.tls_antiguo)
+            nuevos, rs = _procesar(session, u, r, hoy, diag)
+            items += nuevos
+            rss = rss or rs
+            alguna = True
+            diag.paginas += 1
+        except Exception as e:
+            error = error or e
+    if not alguna:
+        raise error
 
     # Si la página anuncia un RSS, se usa además del HTML
     if rss and rss != url:
