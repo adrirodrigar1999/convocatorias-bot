@@ -40,7 +40,7 @@
 - {id: bop-burgos, nombre: BOP Burgos, tipo: boletin, region: Castilla y León, url: "https://bopbur.diputaciondeburgos.es/"}
 - {id: bop-leon, nombre: BOP León, tipo: boletin, region: Castilla y León, url: "https://bop.dipuleon.es/", verificada: true}
 - {id: bop-palencia, nombre: BOP Palencia, tipo: boletin, region: Castilla y León, url: "https://www.diputaciondepalencia.es/", seguir: "bolet[ií]n oficial|\\bbop\\b"}
-- {id: bop-salamanca, nombre: BOP Salamanca, tipo: boletin, region: Castilla y León, url: "https://bop.dipsanet.es/"}
+- {id: bop-salamanca, nombre: BOP Salamanca, tipo: boletin, region: Castilla y León, url: "https://sede.diputaciondesalamanca.gob.es/BOP/"}
 - {id: bop-segovia, nombre: BOP Segovia, tipo: boletin, region: Castilla y León, url: "https://www.dipsegovia.es/bop"}
 - {id: bop-soria, nombre: BOP Soria, tipo: boletin, region: Castilla y León, url: "https://bop.dipsoria.es/"}
 - {id: bop-valladolid, nombre: BOP Valladolid, tipo: boletin, region: Castilla y León, url: "https://bop.sede.diputaciondevalladolid.es/"}

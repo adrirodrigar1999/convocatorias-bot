@@ -185,7 +185,7 @@ def procesar_fuentes(store: Store | None, dry_run: bool, solo: list[str] | None 
         if rotas:
             lineas = ["🛠 Estas fuentes llevan varias pasadas sin responder (puede que hayan cambiado de web):"]
             lineas += [f"• {i} ({n} fallos): {telegram._e(err or '')[:120]}" for i, n, err in rotas]
-            lineas.append("Revísalas en fuentes.yaml o lanza el workflow con «probar_fuentes».")
+            lineas.append("El BOE y el resto de fuentes siguen revisándose con normalidad. No te volveré a avisar de estas mismas.")
             if telegram.enviar("\n".join(lineas), silencioso=True):
                 store.marcar_avisado([i for i, *_ in rotas])
     log.info("Fuentes: %d anuncios nuevos, %d avisos", nuevos_total, avisos_total)
