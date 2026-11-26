@@ -39,7 +39,7 @@
 
 # ======================= BOLETINES PROVINCIALES: CASTILLA Y LEÓN =======================
 - {id: bop-avila, nombre: BOP Ávila, tipo: boletin, region: Castilla y León, url: "https://www.diputacionavila.es/boletin-oficial/{yyyy}/{dd}-{mm}-{yyyy}.html", verificada: true}
-- {id: bop-burgos, nombre: BOP Burgos, tipo: boletin, region: Castilla y León, url: "https://bopbur.diputaciondeburgos.es/", tls_antiguo: true}
+- {id: bop-burgos, nombre: BOP Burgos, tipo: boletin, region: Castilla y León, url: "http://bopbur.diputaciondeburgos.es/", tls_antiguo: true}  # por https el servidor rechaza la conexión
 - {id: bop-leon, nombre: BOP León, tipo: boletin, region: Castilla y León, url: "https://bop.dipuleon.es/", verificada: true}
 - {id: bop-palencia, nombre: BOP Palencia, tipo: boletin, region: Castilla y León, url: "https://www.diputaciondepalencia.es/", seguir: "bolet[ií]n oficial|\\bbop\\b"}
 - {id: bop-salamanca, nombre: BOP Salamanca, tipo: boletin, region: Castilla y León, url: "https://sede.diputaciondesalamanca.gob.es/BOP/"}

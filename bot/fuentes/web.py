@@ -20,9 +20,13 @@ from dataclasses import dataclass, field
 from datetime import date
 from urllib.parse import urljoin, urlparse
 
+import warnings
+
 import requests
 import urllib3
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -510,8 +514,11 @@ def _get(session: requests.Session, url: str, verificar: bool = True,
          tls_antiguo: bool = False) -> requests.Response:
     if tls_antiguo:
         session, verificar = _sesion_antigua(), False
+    cabeceras = HEADERS
+    if "/api/" in url.lower():   # APIs (p. ej. BOP Ourense): si se pide HTML/XML devuelven XML
+        cabeceras = {**HEADERS, "Accept": "application/json, */*;q=0.5"}
     for _ in range(3):
-        r = session.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True, verify=verificar)
+        r = session.get(url, headers=cabeceras, timeout=TIMEOUT, allow_redirects=True, verify=verificar)
         r.raise_for_status()
         sig = _redireccion_html(r)
         if not sig or sig == r.url:
