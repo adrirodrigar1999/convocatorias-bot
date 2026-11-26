@@ -261,3 +261,18 @@ def test_json_generico_bop_ourense():
     items = web._parsear_jsonapi(json.dumps(doc).encode(), "https://bop.depourense.es/portalapi/x")
     assert [i.texto[:20] for i in items] == ["Convocatoria de una ", "Convenio Colectivo d"]
     assert items[0].url == "https://bop.depourense.es/portalapi/x"
+
+
+def test_json_boa_latin1_y_claves_mayusculas():
+    from bot.fuentes import web
+    raw = ('[{"Titulo": "RESOLUCIÓN por la que se convoca proceso selectivo de Técnico de Sistemas", '
+           '"UriEli": "https://www.boa.aragon.es/eli/x"}]').encode("latin-1")
+    items = web._parsear_jsonapi(raw, "https://www.boa.aragon.es/cgi-bin/x")
+    assert items and items[0].url == "https://www.boa.aragon.es/eli/x" and "Sistemas" in items[0].texto
+
+
+def test_texto_con_slug_de_la_url():
+    from bot.fuentes import web
+    html = b'<html><body><a href="/bopt/web/anunci/366759/bases-convocatoria-tecnic-informatica-ajuntament">DIPUTACIO TARRAGONA - PERSONES I TALENT</a></body></html>'
+    items, _ = web._enlaces_html(html, "https://www.dipta.cat/bopt/web/")
+    assert any("tecnic informatica" in i.texto for i in items)

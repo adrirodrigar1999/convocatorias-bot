@@ -21,7 +21,7 @@
 - {id: bocyl, nombre: BOCYL (Castilla y León), tipo: boletin, region: Castilla y León, url: "https://bocyl.jcyl.es/", verificada: true}
 - {id: bocyl-datos, nombre: BOCYL datos abiertos, tipo: boletin, region: Castilla y León, url: "https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/bocyl/1284948181134.csv", activa: false}  # el CSV ya no trae anuncios; lo cubre la fuente bocyl
 - {id: boja, nombre: BOJA (Andalucía), tipo: boletin, url: "https://www.juntadeandalucia.es/eboja.html"}
-- {id: boa, nombre: BOA (Aragón), tipo: boletin, url: "https://www.boa.aragon.es/", tls_antiguo: true}
+- {id: boa, nombre: BOA (Aragón), tipo: boletin, url: "https://www.boa.aragon.es/cgi-bin/EBOA/BRSCGI?CMD=VERLST&BASE=BOLE&DOCS=1-250&SEC=OPENDATABOAJSON&OUTPUTMODE=JSON&SORT=-PUBL&SEPARADOR=&PUBL={yyyymmdd}", tls_antiguo: true, verificada: true}
 - {id: boib, nombre: BOIB (Baleares), tipo: boletin, url: "https://www.caib.es/eboibfront/es"}
 - {id: boc-canarias, nombre: BOC (Canarias), tipo: boletin, url: "https://www.gobiernodecanarias.org/boc/"}
 - {id: docm, nombre: DOCM (Castilla-La Mancha), tipo: boletin, url: "https://docm.jccm.es/docm/"}
@@ -92,7 +92,7 @@
 - {id: ayto-gijon, nombre: Ayuntamiento de Gijón (convocatorias de empleo), tipo: web, region: Asturias, url: "https://drupal.gijon.es/es/jsonapi/node/convocatorias?sort=-created&page[limit]=50", verificada: true}
 - {id: ayto-oviedo, nombre: Ayuntamiento de Oviedo, tipo: web, region: Asturias, url: "https://www.oviedo.es/"}
 - {id: ayto-aviles, nombre: Ayuntamiento de Avilés, tipo: web, region: Asturias, url: "https://aviles.es/"}
-- {id: emtusa, nombre: EMTUSA Gijón, tipo: web, region: Asturias, url: "https://www.emtusagijon.es/", tls_antiguo: true}
+- {id: emtusa, nombre: EMTUSA Gijón, tipo: web, region: Asturias, url: "https://www.emtusagijon.es/", activa: false}  # el servidor corta la conexión segura; integrada en gijon.es
 - {id: ema-gijon, nombre: EMA Gijón (aguas), tipo: web, region: Asturias, url: "https://www.emagijon.es/", activa: false}  # redirige a gijon.es (JavaScript): cubierta por ayto-gijon
 - {id: divertia, nombre: Divertia Gijón, tipo: web, region: Asturias, url: "https://www.divertia.gijon.es/", activa: false}  # la web ya no existe; integrada en gijon.es
 - {id: emulsa, nombre: Emulsa Gijón, tipo: web, region: Asturias, url: "https://www.emulsa.org/", activa: false}  # web con certificado roto; integrada en gijon.es (cubierta por ayto-gijon y BOPA)
@@ -125,7 +125,7 @@
 - {id: redes, nombre: Red.es, tipo: web, url: "https://www.red.es/es"}
 - {id: sepi, nombre: Portal de empleo SEPI, tipo: web, url: "https://www.sepi.es/"}
 - {id: renfe, nombre: Renfe, tipo: web, url: "https://www.renfe.com/es/es"}
-- {id: adif, nombre: Adif (plazo de solicitud abierto), tipo: web, url: "https://www.adif.es/empleo/oferta-empleo-publico/plazo-solicitud-abierto", verificada: true}
+- {id: adif, nombre: Adif (plazo de solicitud abierto), tipo: web, url: "https://www.adif.es/empleo/oferta-empleo-publico/plazo-solicitud-abierto", activa: false}  # bloquea a los programas (403); sus plazas salen en el BOE
 - {id: aena, nombre: AENA, tipo: web, url: "https://www.aena.es/", seguir: "empleo|trabaja"}
 - {id: puertos, nombre: Puertos del Estado, tipo: web, url: "https://www.puertos.es/"}
 - {id: bde, nombre: Banco de España, tipo: web, url: "https://www.bde.es/"}

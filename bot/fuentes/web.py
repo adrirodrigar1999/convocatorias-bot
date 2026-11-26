@@ -27,6 +27,7 @@ from bs4 import BeautifulSoup
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 log = logging.getLogger(__name__)
+logging.getLogger("pypdf").setLevel(logging.ERROR)   # avisos de fuentes tipográficas que no importan
 
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -253,7 +254,10 @@ def _parsear_jsonapi(contenido: bytes, base: str) -> list[Item] | None:
     try:
         doc = json.loads(contenido)
     except ValueError:
-        return None
+        try:   # algunos (BOA) sirven JSON en latin-1
+            doc = json.loads(contenido.decode("latin-1"))
+        except ValueError:
+            return None
     datos = doc.get("data") if isinstance(doc, dict) else None
     if not isinstance(datos, list) or not all(isinstance(d, dict) and "attributes" in d for d in datos[:3]):
         return _parsear_json_generico(doc, base)
@@ -293,8 +297,8 @@ def _parsear_jsonapi(contenido: bytes, base: str) -> list[Item] | None:
     return items
 
 
-CLAVES_TEXTO = ("sumarioCas", "titulo", "title", "asunto", "sumarioEdicto", "sumario", "descripcion", "nombre")
-CLAVES_URL = ("url", "enlace", "link", "href", "urlPdf", "pdf")
+CLAVES_TEXTO = ("sumariocas", "titulo", "title", "asunto", "sumarioedicto", "sumario", "descripcion", "nombre")
+CLAVES_URL = ("url", "urieli", "enlace", "link", "href", "urlpdf", "pdf")
 
 
 def _parsear_json_generico(doc, base: str) -> list[Item]:
@@ -305,9 +309,10 @@ def _parsear_json_generico(doc, base: str) -> list[Item]:
         if profundidad > 8:
             return
         if isinstance(x, dict):
-            texto = next((x[k] for k in CLAVES_TEXTO if isinstance(x.get(k), str) and len(x[k].strip()) >= 25), None)
+            low = {str(k).lower(): v for k, v in x.items()}
+            texto = next((low[k] for k in CLAVES_TEXTO if isinstance(low.get(k), str) and len(low[k].strip()) >= 25), None)
             if texto:
-                url = next((x[k] for k in CLAVES_URL if isinstance(x.get(k), str) and x[k].startswith("http")), base)
+                url = next((low[k] for k in CLAVES_URL if isinstance(low.get(k), str) and low[k].startswith("http")), base)
                 t = _limpio(BeautifulSoup(texto, "lxml").get_text(" ")) if "<" in texto else _limpio(texto)
                 if t not in vistos:
                     vistos.add(t)
@@ -455,6 +460,10 @@ def _enlaces_html(html: bytes, base: str) -> tuple[list[Item], str]:
             url = base
         else:
             url = urljoin(base, href)
+            # enlaces cuyo texto es solo el organismo y el título va en la URL (p. ej. BOP Tarragona)
+            slug = urlparse(url).path.rstrip("/").rsplit("/", 1)[-1]
+            if texto and slug.count("-") >= 3 and not slug.lower().endswith((".pdf", ".html", ".htm", ".php")):
+                texto = f"{texto} — {slug.replace('-', ' ')}"
         if not texto or (url, texto) in vistos:
             continue
         vistos.add((url, texto))
@@ -473,9 +482,15 @@ class _AdaptadorTLSAntiguo(requests.adapters.HTTPAdapter):
         ctx.verify_mode = ssl.CERT_NONE
         ctx.options |= getattr(ssl, "OP_LEGACY_SERVER_CONNECT", 0x4)
         try:
-            ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
-        except ssl.SSLError:
+            ctx.minimum_version = ssl.TLSVersion.TLSv1
+        except (ValueError, AttributeError):
             pass
+        for cifrados in ("ALL:@SECLEVEL=0", "DEFAULT:@SECLEVEL=1"):
+            try:
+                ctx.set_ciphers(cifrados)
+                break
+            except ssl.SSLError:
+                continue
         kwargs["ssl_context"] = ctx
         return super().init_poolmanager(*args, **kwargs)
 
@@ -536,7 +551,7 @@ def _procesar(session, url: str, r: requests.Response, hoy: date, diag: Diagnost
     if _es_pdf(r):
         diag.pdfs += 1
         return _parsear_pdf(r.content, url), ""
-    if "json" in ctype or r.content[:1] == b"{":
+    if "json" in ctype or r.content.lstrip()[:1] in (b"{", b"["):
         api = _parsear_jsonapi(r.content, url)
         if api is not None:
             return api, ""
