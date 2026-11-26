@@ -9,6 +9,8 @@
 #   verificada: true   -> URL comprobada a mano; el resto se valida con --probar-fuentes
 #   activa: false      -> desactivarla sin borrarla
 #   verificar_ssl: false -> solo para webs públicas con el certificado mal instalado
+#   tls_antiguo: true  -> solo para webs públicas con TLS antiguo que OpenSSL 3 rechaza (autorizado: boa,
+#                         bop-burgos, emtusa); no añadir a otras sin preguntar
 #   excluir: regex de textos a ignorar en esa fuente
 #
 # Para añadir una fuente basta con copiar un bloque. Si una deja de funcionar, el bot avisa.
@@ -19,7 +21,7 @@
 - {id: bocyl, nombre: BOCYL (Castilla y León), tipo: boletin, region: Castilla y León, url: "https://bocyl.jcyl.es/", verificada: true}
 - {id: bocyl-datos, nombre: BOCYL datos abiertos, tipo: boletin, region: Castilla y León, url: "https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/bocyl/1284948181134.csv", verificada: true, verificar_ssl: false}
 - {id: boja, nombre: BOJA (Andalucía), tipo: boletin, url: "https://www.juntadeandalucia.es/eboja.html"}
-- {id: boa, nombre: BOA (Aragón), tipo: boletin, url: "https://www.boa.aragon.es/"}
+- {id: boa, nombre: BOA (Aragón), tipo: boletin, url: "https://www.boa.aragon.es/", tls_antiguo: true}
 - {id: boib, nombre: BOIB (Baleares), tipo: boletin, url: "https://www.caib.es/eboibfront/es"}
 - {id: boc-canarias, nombre: BOC (Canarias), tipo: boletin, url: "https://www.gobiernodecanarias.org/boc/"}
 - {id: docm, nombre: DOCM (Castilla-La Mancha), tipo: boletin, url: "https://docm.jccm.es/docm/"}
@@ -37,7 +39,7 @@
 
 # ======================= BOLETINES PROVINCIALES: CASTILLA Y LEÓN =======================
 - {id: bop-avila, nombre: BOP Ávila, tipo: boletin, region: Castilla y León, url: "https://www.diputacionavila.es/boletin-oficial/{yyyy}/{dd}-{mm}-{yyyy}.html", verificada: true}
-- {id: bop-burgos, nombre: BOP Burgos, tipo: boletin, region: Castilla y León, url: "https://bopbur.diputaciondeburgos.es/"}
+- {id: bop-burgos, nombre: BOP Burgos, tipo: boletin, region: Castilla y León, url: "https://bopbur.diputaciondeburgos.es/", tls_antiguo: true}
 - {id: bop-leon, nombre: BOP León, tipo: boletin, region: Castilla y León, url: "https://bop.dipuleon.es/", verificada: true}
 - {id: bop-palencia, nombre: BOP Palencia, tipo: boletin, region: Castilla y León, url: "https://www.diputaciondepalencia.es/", seguir: "bolet[ií]n oficial|\\bbop\\b"}
 - {id: bop-salamanca, nombre: BOP Salamanca, tipo: boletin, region: Castilla y León, url: "https://sede.diputaciondesalamanca.gob.es/BOP/"}
@@ -87,7 +89,7 @@
 - {id: ayto-gijon, nombre: Ayuntamiento de Gijón, tipo: web, region: Asturias, url: "https://www.gijon.es/"}
 - {id: ayto-oviedo, nombre: Ayuntamiento de Oviedo, tipo: web, region: Asturias, url: "https://www.oviedo.es/"}
 - {id: ayto-aviles, nombre: Ayuntamiento de Avilés, tipo: web, region: Asturias, url: "https://aviles.es/"}
-- {id: emtusa, nombre: EMTUSA Gijón, tipo: web, region: Asturias, url: "https://www.emtusagijon.es/", verificar_ssl: false}
+- {id: emtusa, nombre: EMTUSA Gijón, tipo: web, region: Asturias, url: "https://www.emtusagijon.es/", tls_antiguo: true}
 - {id: ema-gijon, nombre: EMA Gijón (aguas), tipo: web, region: Asturias, url: "https://www.emagijon.es/"}
 - {id: divertia, nombre: Divertia Gijón, tipo: web, region: Asturias, url: "https://www.divertia.gijon.es/"}
 - {id: emulsa, nombre: Emulsa Gijón, tipo: web, region: Asturias, url: "https://www.emulsa.org/", verificar_ssl: false}

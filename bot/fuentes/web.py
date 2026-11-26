@@ -126,6 +126,7 @@ class Fuente:
     seguir: str | None = None      # regex de enlaces a seguir; por defecto según tipo
     pdf: bool = True               # leer PDFs del día enlazados (boletines)
     verificar_ssl: bool = True     # false solo para webs públicas con el certificado mal instalado
+    tls_antiguo: bool = False      # true solo para webs públicas con TLS antiguo que OpenSSL 3 rechaza
     informatica: bool = False      # todo lo que publica es de informática (p. ej. INCIBE)
     verificada: bool = False
     extra: dict = field(default_factory=dict)
@@ -368,7 +369,39 @@ def _enlaces_html(html: bytes, base: str) -> tuple[list[Item], str]:
     return items, rss
 
 
-def _get(session: requests.Session, url: str, verificar: bool = True) -> requests.Response:
+class _AdaptadorTLSAntiguo(requests.adapters.HTTPAdapter):
+    """Para las pocas webs públicas marcadas con `tls_antiguo: true` en fuentes.yaml: aceptan solo
+    renegociación heredada o claves cortas y OpenSSL 3 las rechaza. Se usa únicamente para leerlas."""
+
+    def init_poolmanager(self, *args, **kwargs):
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        ctx.options |= getattr(ssl, "OP_LEGACY_SERVER_CONNECT", 0x4)
+        try:
+            ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
+        except ssl.SSLError:
+            pass
+        kwargs["ssl_context"] = ctx
+        return super().init_poolmanager(*args, **kwargs)
+
+
+_sesion_tls_antiguo: requests.Session | None = None
+
+
+def _sesion_antigua() -> requests.Session:
+    global _sesion_tls_antiguo
+    if _sesion_tls_antiguo is None:
+        _sesion_tls_antiguo = requests.Session()
+        _sesion_tls_antiguo.mount("https://", _AdaptadorTLSAntiguo())
+    return _sesion_tls_antiguo
+
+
+def _get(session: requests.Session, url: str, verificar: bool = True,
+         tls_antiguo: bool = False) -> requests.Response:
+    if tls_antiguo:
+        session, verificar = _sesion_antigua(), False
     r = session.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True, verify=verificar)
     r.raise_for_status()
     return r
@@ -402,14 +435,14 @@ def obtener_crudo(f: Fuente, session: requests.Session, hoy: date) -> tuple[list
     """
     diag = Diagnostico()
     url = expandir_url(f.url, hoy)
-    r = _get(session, url, f.verificar_ssl)
+    r = _get(session, url, f.verificar_ssl, f.tls_antiguo)
     diag.paginas = 1
     items, rss = _procesar(session, url, r, hoy, diag)
 
     # Si la página anuncia un RSS, se usa además del HTML
     if rss and rss != url:
         try:
-            feed = _parsear_feed(_get(session, rss, f.verificar_ssl).content) or []
+            feed = _parsear_feed(_get(session, rss, f.verificar_ssl, f.tls_antiguo).content) or []
             items += feed
             diag.rss = rss
         except Exception as e:
@@ -443,7 +476,7 @@ def obtener_crudo(f: Fuente, session: requests.Session, hoy: date) -> tuple[list
                     break
                 saltos += 1
                 try:
-                    r2 = _get(session, sig, f.verificar_ssl)
+                    r2 = _get(session, sig, f.verificar_ssl, f.tls_antiguo)
                     if _es_pdf(r2) and len(r2.content) > MAX_PDF_BYTES:
                         continue
                     nuevos, _ = _procesar(session, sig, r2, hoy, diag)
