@@ -324,3 +324,32 @@ def test_slug_no_se_repite_si_ya_esta_en_el_texto():
     html = b'<a href="/empleo/1-plaza-de-tecnico-a-de-gestion">1 plaza de t\xc3\xa9cnico/a de Gesti\xc3\xb3n</a>'
     items, _ = web._enlaces_html(html, "https://www.oviedo.es/")
     assert items[0].texto == "1 plaza de técnico/a de Gestión"
+
+
+def test_casos_reales_que_se_colaban():
+    from datetime import date
+    from bot import clasificador
+    from bot.modelo import Convocatoria
+    from bot.fuentes import web
+    hoy = date(2026, 11, 26)
+    def manda(titulo, region=None):
+        c = Convocatoria("x", "web", hoy, "web", titulo, "u")
+        return clasificador.clasificar(c, region=region, exigir_convocatoria=False).enviar
+    assert not manda("Convocatoria contrato – Anuncio de Canal de Isabel II por el que se hace pública la convocatoria "
+                     "del contrato por procedimiento abierto para el Suministro de una red de telecomunicaciones MPLS/IP")
+    assert not manda("Resolución por la que se convoca el puesto de Jefe/a de Grupo no Sanitario en la Subdirección "
+                     "de Sistemas de Información", region="Asturias")
+    assert not manda("Resolución Constitución Bolsa de Trabajo de Técnico Especialista de Informática y Comunicaciones")
+    assert not manda("Personal Laboral. Adscripción Temporal. Titulado Superior Analista Sistemas (Grupo I). Servicios Informáticos")
+    assert not manda("Última actualización: 09/11/2026 Pruebas en curso — analista programador 1 plaza libre")
+    assert not manda("Concluido el plazo de presentación de candidaturas. Perfil Proyectos TIC")
+    assert not manda("Estabilización por concurso de personal estatutario — técnico especialista de informática")
+    assert clasificador.solo_anios_pasados("TÉCNICO AUXILIAR DE INFORMÁTICA OE 2023 https://x/doc_20231122.pdf", hoy)
+    assert clasificador.solo_anios_pasados("Bolsa de Analista TIC (OEP 2025)", hoy)
+    assert not clasificador.solo_anios_pasados("4 plazas de Técnico/a de Gestión (OEP 25 y 26)", hoy)
+    assert not clasificador.solo_anios_pasados("Bases OEP 2025 publicadas el 20/11/2026 en 2026", hoy)
+    # estado de la página manda sobre fechas sueltas
+    f = web.Fuente(id="ayto-salamanca", nombre="Salamanca", tipo="web", url="https://x.es/")
+    e, _, _ = web.estado_plazo(f, "https://x.es/a", _sesion_falsa(
+        "<p>Analista programador. Estado: Pruebas en curso. Plazo de solicitudes hasta el 17/12/2026</p>"), hoy)
+    assert e == "cerrada"

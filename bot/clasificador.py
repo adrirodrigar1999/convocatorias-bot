@@ -40,6 +40,14 @@ NO_NUEVA = _rx(
     r"|cuerpos docentes universitarios|profesor[a]? (titular|contratad|ayudante|asociad|visitante)"
     r"|catedratic|personal docente e investigador|ayudante doctor|personal investigador"
     r"|se adjudica|adjudicacion|cese|jubilacion|convocatorias? cerrad|proceso finalizado|finalizad[oa]s?$"
+    # contratación pública, no empleo
+    r"|procedimiento abierto|licitacion|contrato de (servicios|suministro|obras)|convocatoria (del )?contrato|suministro"
+    # movilidad o puestos para quien ya es personal de la casa
+    r"|adscripcion temporal|comision de servicios|convoca (el|los) puestos? de|jef[ea]s?/?a? de (grupo|servicio|seccion|unidad|negociado)"
+    # procesos que ya no abren plazo
+    r"|constitucion (de la )?bolsa|bolsa constituida|pruebas en curso|en proceso de resolucion|en tramitacion"
+    r"|conclui[dt][oa] el plazo|finalizad[oa] el plazo|plazo (de presentacion[a-z ]*)?(concluido|finalizado|cerrado)"
+    r"|estabilizacion|notas|puntuaciones|calificacion(es)? (final|provisional|definitiva)"
 )
 ES_CONVOCATORIA = _rx(r"convoca|convocatoria|proceso selectivo|pruebas selectivas|bolsa|proveer|seleccion")
 SOLO_PROMOCION = _rx(r"promocion interna")
@@ -453,12 +461,28 @@ def fechas_en_texto(texto_norm: str, hoy: date) -> list[date]:
 
 
 def fin_de_plazo_en_texto(texto: str, hoy: date) -> date | None:
-    """Si el texto habla de plazo, devuelve la fecha más tardía que menciona."""
+    """Fecha de fin de plazo: la más tardía que aparece justo después de una pista de plazo
+    («plazo», «hasta el», «fecha fin»...). En textos largos no se toman fechas sueltas (exámenes, etc.)."""
     n = norm(texto)
     if not PISTA_PLAZO.search(n):
         return None
-    fechas = fechas_en_texto(n, hoy)
+    if len(n) <= 400:
+        fechas = fechas_en_texto(n, hoy)
+    else:
+        fechas = []
+        for m in PISTA_PLAZO.finditer(n):
+            fechas += fechas_en_texto(n[m.start(): m.end() + 160], hoy)
     return max(fechas) if fechas else None
+
+
+RX_ANIO = re.compile(r"(?<!\d)(20[12]\d)(?:(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01]))?(?!\d)")
+
+
+def solo_anios_pasados(texto: str, hoy: date) -> bool:
+    """True si el texto/URL menciona años y todos son anteriores al actual (p. ej. «OEP 2024», «..._20240215.pdf»)."""
+    anios = {int(a) for a in RX_ANIO.findall(texto or "")}
+    anios = {a for a in anios if 2010 <= a <= hoy.year + 1}
+    return bool(anios) and max(anios) < hoy.year
 
 
 # --- Huella para no repetir la misma convocatoria vista en dos fuentes ------------------------

@@ -469,8 +469,10 @@ def _enlaces_html(html: bytes, base: str) -> tuple[list[Item], str]:
             if texto and slug.count("-") >= 3 and not slug.lower().endswith((".pdf", ".html", ".htm", ".php")):
                 from bot.clasificador import norm
                 pal_slug = set(slug.lower().split("-")) - {"de", "la", "el", "del", "y", "a", "en"}
+                if sum(p.isalpha() and len(p) > 2 for p in pal_slug) < 3:   # identificadores (uuid...), no títulos
+                    pal_slug = set()
                 pal_texto = set(re.findall(r"[a-z0-9]+", norm(texto)))
-                if len(pal_slug - pal_texto) > len(pal_slug) / 2:   # solo si la URL dice algo que el texto no
+                if pal_slug and len(pal_slug - pal_texto) > len(pal_slug) / 2:   # solo si la URL dice algo que el texto no
                     texto = f"{texto} — {slug.replace('-', ' ')}"
         if not texto or (url, texto) in vistos:
             continue
@@ -693,11 +695,17 @@ def obtener(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item]
 
 
 # --- Comprobar en la página del anuncio que el plazo sigue abierto -------------------------
+# Estados que las webs ponen a sus procesos: mandan aunque la página tenga fechas
+RX_ESTADO_CERRADO = re.compile(
+    r"pruebas en curso|en proceso de resolucion|proceso (finalizado|cerrado|resuelto)|convocatoria (cerrada|finalizada|resuelta)"
+    r"|plazo (de presentacion[a-z ]*)?(cerrado|finalizado|concluido)|fuera de plazo|constitucion (de la )?bolsa|bolsa constituida"
+    r"|estado:? (cerrad|finalizad|resuelt|en curso)")
+# Señales de que el proceso ya avanzó (solo cuentan si la página no trae un fin de plazo futuro:
+# las bases suelen decir «finalizado el plazo... se publicará la lista provisional de admitidos»)
 RX_CERRADA = re.compile(
-    r"plazo[a-z ]{0,40}(finalizad|cerrad|conclui|terminad|expirad)|fuera de plazo|proceso (finalizado|cerrado|resuelto)"
-    r"|lista[s]? (provisional|definitiva)[a-z ]{0,30}(admitid|aspirantes|excluid)|relacion (provisional |definitiva )?de aprobad"
+    r"lista[s]? (provisional|definitiva)[a-z ]{0,30}(admitid|aspirantes|excluid)|relacion (provisional |definitiva )?de aprobad"
     r"|calificaciones (provisionales|definitivas|del)|propuesta de (nombramiento|contratacion)|nombramiento como funcionari"
-    r"|resolucion definitiva|bolsa (constituida|vigente)|cerrad[oa] el plazo")
+    r"|resolucion definitiva|bolsa vigente")
 DIAS_RECIENTE = 30
 
 
@@ -720,6 +728,8 @@ def estado_plazo(f: "Fuente", url: str, session: requests.Session, hoy: date) ->
     except Exception as e:
         return "desconocido", None, f"no se pudo abrir el anuncio ({type(e).__name__})"
     n = norm(texto)
+    if RX_ESTADO_CERRADO.search(n):
+        return "cerrada", None, "la página dice que el plazo o el proceso ya terminó"
     fin = fin_de_plazo_en_texto(texto, hoy)
     if fin:
         return ("abierta" if fin >= hoy else "cerrada"), fin, f"fin de plazo {fin:%d/%m/%Y}"

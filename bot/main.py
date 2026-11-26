@@ -161,6 +161,9 @@ def procesar_fuentes(store: Store | None, dry_run: bool, solo: list[str] | None 
                     r.enviar, r.motivo = False, "plazo cerrado"
             # Primera vez que se mira esta fuente: lo que ya estaba publicado solo se avisa
             # si el propio anuncio dice que el plazo sigue abierto (el resto se guarda en silencio).
+            # anuncios cuyo texto o URL solo menciona años pasados (OEP 2024, bases_2023.pdf...)
+            if r.enviar and not (fin and fin >= hoy()) and clasificador.solo_anios_pasados(c.titulo + " " + it.url, hoy()):
+                r.enviar, r.motivo = False, "anuncio de años anteriores"
             if r.enviar and primera and not fin:
                 r.enviar, r.motivo = False, "ya publicado antes de empezar a vigilar la fuente"
             # Webs (listados de procesos, sin fecha): se abre el anuncio y solo se avisa si el plazo
@@ -178,6 +181,12 @@ def procesar_fuentes(store: Store | None, dry_run: bool, solo: list[str] | None 
             if r.enviar:
                 r = llm.afinar(c, r)
             pares.append((c, r))
+        vistas_url = set()
+        for c, r in pares:   # dos enlaces al mismo anuncio en la misma página: un solo aviso
+            if r.enviar:
+                if c.url in vistas_url and c.url not in (pagina, f.url):
+                    r.enviar, r.motivo = False, "repetido en la misma página"
+                vistas_url.add(c.url)
         enviables = [(c, r) for c, r in pares if r.enviar]
         avisos_total += len(enviables)
 
