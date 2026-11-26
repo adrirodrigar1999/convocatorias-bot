@@ -467,7 +467,11 @@ def _enlaces_html(html: bytes, base: str) -> tuple[list[Item], str]:
             # enlaces cuyo texto es solo el organismo y el título va en la URL (p. ej. BOP Tarragona)
             slug = urlparse(url).path.rstrip("/").rsplit("/", 1)[-1]
             if texto and slug.count("-") >= 3 and not slug.lower().endswith((".pdf", ".html", ".htm", ".php")):
-                texto = f"{texto} — {slug.replace('-', ' ')}"
+                from bot.clasificador import norm
+                pal_slug = set(slug.lower().split("-")) - {"de", "la", "el", "del", "y", "a", "en"}
+                pal_texto = set(re.findall(r"[a-z0-9]+", norm(texto)))
+                if len(pal_slug - pal_texto) > len(pal_slug) / 2:   # solo si la URL dice algo que el texto no
+                    texto = f"{texto} — {slug.replace('-', ' ')}"
         if not texto or (url, texto) in vistos:
             continue
         vistos.add((url, texto))
@@ -686,3 +690,44 @@ def obtener(f: Fuente, session: requests.Session, hoy: date) -> tuple[list[Item]
     if diag.enlaces == 0:
         diag.estado = "vacía"
     return filtrados, diag
+
+
+# --- Comprobar en la página del anuncio que el plazo sigue abierto -------------------------
+RX_CERRADA = re.compile(
+    r"plazo[a-z ]{0,40}(finalizad|cerrad|conclui|terminad|expirad)|fuera de plazo|proceso (finalizado|cerrado|resuelto)"
+    r"|lista[s]? (provisional|definitiva)[a-z ]{0,30}(admitid|aspirantes|excluid)|relacion (provisional |definitiva )?de aprobad"
+    r"|calificaciones (provisionales|definitivas|del)|propuesta de (nombramiento|contratacion)|nombramiento como funcionari"
+    r"|resolucion definitiva|bolsa (constituida|vigente)|cerrad[oa] el plazo")
+DIAS_RECIENTE = 30
+
+
+def estado_plazo(f: "Fuente", url: str, session: requests.Session, hoy: date) -> tuple[str, date | None, str]:
+    """Abre la página (o PDF) del anuncio y decide si el plazo está abierto.
+    Devuelve ("abierta"|"cerrada"|"desconocido", fecha_fin, motivo)."""
+    from datetime import timedelta
+    from bot.clasificador import fin_de_plazo_en_texto, fechas_en_texto, norm
+    try:
+        r = _get(session, url, f.verificar_ssl, f.tls_antiguo)
+        if _es_pdf(r):
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(r.content))
+            texto = " ".join((p.extract_text() or "") for p in reader.pages[:4])
+        else:
+            sopa = BeautifulSoup(r.content, "lxml")
+            for t in sopa(["script", "style", "nav", "header", "footer"]):
+                t.decompose()
+            texto = sopa.get_text(" ")
+    except Exception as e:
+        return "desconocido", None, f"no se pudo abrir el anuncio ({type(e).__name__})"
+    n = norm(texto)
+    fin = fin_de_plazo_en_texto(texto, hoy)
+    if fin:
+        return ("abierta" if fin >= hoy else "cerrada"), fin, f"fin de plazo {fin:%d/%m/%Y}"
+    if RX_CERRADA.search(n):
+        return "cerrada", None, "la página indica que el plazo o el proceso ya terminó"
+    fechas = [d for d in fechas_en_texto(n, hoy) if d <= hoy + timedelta(days=60)]
+    if not fechas:
+        return "desconocido", None, "el anuncio no trae ninguna fecha"
+    if max(fechas) < hoy - timedelta(days=DIAS_RECIENTE):
+        return "cerrada", None, f"la fecha más reciente del anuncio es {max(fechas):%d/%m/%Y}"
+    return "abierta", None, "publicado hace poco y sin señales de cierre"

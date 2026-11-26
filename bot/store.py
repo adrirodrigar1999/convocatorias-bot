@@ -43,6 +43,11 @@ class Store:
     def visto(self, ident: str) -> bool:
         return self.db.execute("SELECT 1 FROM anuncios WHERE id = ?", (ident,)).fetchone() is not None
 
+    def url_vista(self, fuente_id: str, url: str) -> bool:
+        """¿Ya se revisó algún anuncio de esta fuente con esta misma URL (aunque cambie el texto)?"""
+        return self.db.execute("SELECT 1 FROM anuncios WHERE id LIKE ? AND url = ? LIMIT 1",
+                               (fuente_id + ":%", url)).fetchone() is not None
+
     def guardar(self, c, enviado: bool, motivo: str) -> None:
         self.db.execute(
             "INSERT OR REPLACE INTO anuncios VALUES (?,?,?,?,?,?,?,?)",

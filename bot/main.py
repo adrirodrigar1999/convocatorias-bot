@@ -142,11 +142,16 @@ def procesar_fuentes(store: Store | None, dry_run: bool, solo: list[str] | None 
                 store.fuente_fallo(f.id, motivo)
             continue
         primera = store.fuente_nueva(f.id) if (store and not dry_run) else False
+        pagina = web.expandir_url(f.url, hoy())
+        sesion = requests.Session()
         pares = []
         for it in items:
             c = _a_convocatoria(f, it)
-            if store and not dry_run and store.visto(c.id):
-                continue
+            if store and not dry_run:
+                # misma URL concreta ya revisada = mismo anuncio, aunque el texto del enlace haya cambiado
+                url_concreta = it.url not in (pagina, f.url) and not it.url.lower().split("?")[0].endswith(".pdf")
+                if store.visto(c.id) or (url_concreta and store.url_vista(f.id, it.url)):
+                    continue
             nuevos_total += 1
             r = _clasificar_item(f, c)
             fin = clasificador.fin_de_plazo_en_texto(c.titulo, hoy())
@@ -158,6 +163,18 @@ def procesar_fuentes(store: Store | None, dry_run: bool, solo: list[str] | None 
             # si el propio anuncio dice que el plazo sigue abierto (el resto se guarda en silencio).
             if r.enviar and primera and not fin:
                 r.enviar, r.motivo = False, "ya publicado antes de empezar a vigilar la fuente"
+            # Webs (listados de procesos, sin fecha): se abre el anuncio y solo se avisa si el plazo
+            # sigue abierto. Muchas webs mezclan procesos de años anteriores o ya cerrados.
+            if r.enviar and not fin and f.tipo == "web" and it.url not in (pagina, f.url):
+                estado, fin_pag, motivo = web.estado_plazo(f, it.url, sesion, hoy())
+                if estado != "abierta":
+                    r.enviar, r.motivo = False, f"plazo no confirmado: {motivo}"
+                elif fin_pag:
+                    r.plazo_fin, r.plazo_texto = fin_pag, "según el anuncio"
+                else:
+                    r.plazo_texto = "publicado hace poco; confirma el plazo en el anuncio"
+            elif r.enviar and not fin and f.tipo == "web":
+                r.enviar, r.motivo = False, "plazo no confirmado: el anuncio no tiene página propia"
             if r.enviar:
                 r = llm.afinar(c, r)
             pares.append((c, r))

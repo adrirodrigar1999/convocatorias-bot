@@ -156,6 +156,9 @@ def test_flujo_completo(tmp_path, monkeypatch):
     PAGINAS["https://www.incibe.es/empleo"] = (INCIBE.replace(b"</div>\n</div>",
         b'</div><div class="conv"><h3><a href="/empleo/INC-26002">Convocatoria p\xc3\xbablica. Perfil T\xc3\xa9cnico de Ciberseguridad de Sistemas</a></h3></div>'
         b'<div class="conv"><h3><a href="/empleo/INC-26003">Convocatoria de bolsa de T\xc3\xa9cnico de Ciberseguridad (plazo hasta el 2 de diciembre de 2026)</a></h3></div></div>'), "text/html")
+    # las webs se comprueban abriendo el anuncio: solo se avisa si el plazo está abierto
+    PAGINAS["https://www.incibe.es/empleo/INC-26002"] = (
+        b"<html><p>Plazo de presentaci\xc3\xb3n de solicitudes hasta el 15/12/2026</p></html>", "text/html")
     for _ in range(M.UMBRAL_AVISO_ROTA):
         M.procesar_fuentes(store, dry_run=False)
     avisos = [t for t in enviados if "Ver anuncio" in t]
@@ -276,3 +279,48 @@ def test_texto_con_slug_de_la_url():
     html = b'<html><body><a href="/bopt/web/anunci/366759/bases-convocatoria-tecnic-informatica-ajuntament">DIPUTACIO TARRAGONA - PERSONES I TALENT</a></body></html>'
     items, _ = web._enlaces_html(html, "https://www.dipta.cat/bopt/web/")
     assert any("tecnic informatica" in i.texto for i in items)
+
+
+def _sesion_falsa(html):
+    class R:
+        def __init__(self):
+            self.content, self.url, self.headers = html.encode(), "https://x.es/a", {"content-type": "text/html"}
+        def raise_for_status(self):
+            pass
+    class S:
+        def get(self, *a, **k):
+            return R()
+    return S()
+
+
+def test_estado_plazo_pagina():
+    from datetime import date
+    from bot.fuentes import web
+    f = web.Fuente(id="ayto-oviedo", nombre="Oviedo", tipo="web", url="https://www.oviedo.es/")
+    hoy = date(2026, 11, 26)
+    # proceso de 2024 sin plazo: cerrado por antigüedad
+    e, _, _ = web.estado_plazo(f, "https://x.es/a", _sesion_falsa(
+        "<p>1 plaza de Técnico de Gestión. Bases publicadas el 12/03/2024. OEP 2024</p>"), hoy)
+    assert e == "cerrada"
+    # con lista de admitidos: cerrado
+    e, _, _ = web.estado_plazo(f, "https://x.es/a", _sesion_falsa(
+        "<p>Analista TIC. 20/11/2026: Lista provisional de personas admitidas y excluidas</p>"), hoy)
+    assert e == "cerrada"
+    # plazo explícito futuro: abierto
+    e, fin, _ = web.estado_plazo(f, "https://x.es/a", _sesion_falsa(
+        "<p>Plazo de presentación de solicitudes: del 20/11/2026 al 10/12/2026</p>"), hoy)
+    assert e == "abierta" and fin == date(2026, 12, 10)
+    # plazo explícito pasado: cerrado
+    e, _, _ = web.estado_plazo(f, "https://x.es/a", _sesion_falsa(
+        "<p>Plazo de solicitudes hasta el 05/11/2026</p>"), hoy)
+    assert e == "cerrada"
+    # sin ninguna fecha: no se puede confirmar
+    e, _, _ = web.estado_plazo(f, "https://x.es/a", _sesion_falsa("<p>Bolsa de Analista TIC</p>"), hoy)
+    assert e == "desconocido"
+
+
+def test_slug_no_se_repite_si_ya_esta_en_el_texto():
+    from bot.fuentes import web
+    html = b'<a href="/empleo/1-plaza-de-tecnico-a-de-gestion">1 plaza de t\xc3\xa9cnico/a de Gesti\xc3\xb3n</a>'
+    items, _ = web._enlaces_html(html, "https://www.oviedo.es/")
+    assert items[0].texto == "1 plaza de técnico/a de Gestión"
