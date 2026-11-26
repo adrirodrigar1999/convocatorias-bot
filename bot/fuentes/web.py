@@ -12,6 +12,7 @@ Los items se filtran luego con el clasificador; aquí solo se extrae.
 import csv
 import hashlib
 import io
+import json
 import logging
 import re
 import xml.etree.ElementTree as ET
@@ -235,6 +236,54 @@ def _parsear_xml_generico(contenido: bytes, base: str) -> list[Item]:
     return items
 
 
+CATEGORIAS_EMPLEO = re.compile(r"empleo|oposici|convocatoria|proceso", re.I)
+
+
+def _parsear_jsonapi(contenido: bytes, base: str) -> list[Item] | None:
+    """Drupal JSON:API (p. ej. drupal.gijon.es, que alimenta la web de Gijón hecha con JavaScript)."""
+    try:
+        doc = json.loads(contenido)
+    except ValueError:
+        return None
+    datos = doc.get("data") if isinstance(doc, dict) else None
+    if not isinstance(datos, list):
+        return None
+    items = []
+    for d in datos:
+        a = (d or {}).get("attributes") or {}
+        titulo = (a.get("title") or "").strip()
+        if not titulo:
+            continue
+        cat = a.get("field_categoria_convocatorias")
+        if isinstance(cat, str) and cat and not CATEGORIAS_EMPLEO.search(cat):
+            continue
+        partes = [titulo]
+        for k in ("field_convoca", "field_resumen_tablon"):
+            v = a.get(k)
+            if isinstance(v, str) and v.strip():
+                partes.append(BeautifulSoup(v, "lxml").get_text(" ", strip=True)[:400])
+        cuerpo = a.get("body")
+        if isinstance(cuerpo, dict) and (cuerpo.get("summary") or cuerpo.get("value")):
+            txt = BeautifulSoup(cuerpo.get("summary") or cuerpo.get("value"), "lxml").get_text(" ", strip=True)
+            partes.append(txt[:400])
+        plazo = a.get("field_plazo2")
+        if isinstance(plazo, str) and plazo.strip():
+            partes.append(f"Plazo de solicitudes hasta el {plazo.strip()}")
+        url = ""
+        for k in ("field_enlace", "field_url"):
+            v = a.get(k)
+            v = v.get("uri") if isinstance(v, dict) else (v[0].get("uri") if isinstance(v, list) and v and isinstance(v[0], dict) else v)
+            if isinstance(v, str) and v.startswith("http"):
+                url = v
+                break
+        if not url:
+            alias = (a.get("path") or {}).get("alias") if isinstance(a.get("path"), dict) else None
+            host = urlparse(base)
+            url = f"{host.scheme}://{host.netloc.replace('drupal.', 'www.')}/es{alias}" if alias else base
+        items.append(Item(". ".join(partes), url))
+    return items
+
+
 def _parsear_csv(contenido: bytes, base: str, hoy: date) -> list[Item]:
     texto = contenido.decode("utf-8-sig", errors="replace")
     muestra = texto[:5000]
@@ -416,6 +465,10 @@ def _procesar(session, url: str, r: requests.Response, hoy: date, diag: Diagnost
     if _es_pdf(r):
         diag.pdfs += 1
         return _parsear_pdf(r.content, url), ""
+    if "json" in ctype or r.content[:1] == b"{":
+        api = _parsear_jsonapi(r.content, url)
+        if api is not None:
+            return api, ""
     if "csv" in ctype or url.lower().endswith(".csv"):
         return _parsear_csv(r.content, url, hoy), ""
     cabeza = r.content[:3000].lstrip().lower()

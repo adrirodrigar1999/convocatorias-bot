@@ -217,3 +217,20 @@ def test_boe_y_boletin_no_repiten(tmp_path, monkeypatch):
                       "Anuncio. Ayuntamiento de Siero. Bases para la provisión de una plaza de Técnico/a de Administración General", "u")
     assert M._enviar_aviso(store, c2, Resultado(True, "region"), c2.titulo)
     assert len(enviados) == 1 and store.visto("bopa:1")
+
+
+def test_jsonapi_drupal_gijon():
+    import json
+    from bot.fuentes import web
+    doc = {"data": [
+        {"attributes": {"title": "Bolsa de empleo Técnico/a de Gestión. Ayuntamiento de Castrillón",
+                        "field_categoria_convocatorias": "Empleo", "field_plazo2": "11/12/2026",
+                        "path": {"alias": "/bolsa-tecnico-gestion"}}},
+        {"attributes": {"title": "Programa Juventud Asturiana Cooperante 2027",
+                        "field_categoria_convocatorias": "Ayudas y Subvenciones"}},
+    ]}
+    items = web._parsear_jsonapi(json.dumps(doc).encode(), "https://drupal.gijon.es/es/jsonapi/node/convocatorias")
+    assert len(items) == 1
+    assert "11/12/2026" in items[0].texto
+    assert items[0].url == "https://www.gijon.es/es/bolsa-tecnico-gestion"
+    assert web._parsear_jsonapi(b"<html></html>", "x") is None

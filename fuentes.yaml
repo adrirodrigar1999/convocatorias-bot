@@ -86,11 +86,13 @@
 
 # ======================= WEBS: ASTURIAS =======================
 - {id: iaap, nombre: Principado - IAAP procesos selectivos, tipo: web, region: Asturias, url: "https://iaap.asturias.es/", seguir: "procesos selectivos|bolsas?|convocatorias"}
-- {id: ayto-gijon, nombre: Ayuntamiento de Gijón, tipo: web, region: Asturias, url: "https://www.gijon.es/"}
+# gijon.es está hecha con JavaScript: se lee su API (convocatorias de empleo que publica el Ayuntamiento,
+# incluidas las de otros organismos de Asturias), que trae la fecha de fin de plazo
+- {id: ayto-gijon, nombre: Ayuntamiento de Gijón (convocatorias de empleo), tipo: web, region: Asturias, url: "https://drupal.gijon.es/es/jsonapi/node/convocatorias?sort=-created&page[limit]=50", verificada: true}
 - {id: ayto-oviedo, nombre: Ayuntamiento de Oviedo, tipo: web, region: Asturias, url: "https://www.oviedo.es/"}
 - {id: ayto-aviles, nombre: Ayuntamiento de Avilés, tipo: web, region: Asturias, url: "https://aviles.es/"}
 - {id: emtusa, nombre: EMTUSA Gijón, tipo: web, region: Asturias, url: "https://www.emtusagijon.es/", tls_antiguo: true}
-- {id: ema-gijon, nombre: EMA Gijón (aguas), tipo: web, region: Asturias, url: "https://www.emagijon.es/"}
+- {id: ema-gijon, nombre: EMA Gijón (aguas), tipo: web, region: Asturias, url: "https://www.emagijon.es/", activa: false}  # redirige a gijon.es (JavaScript): cubierta por ayto-gijon
 - {id: divertia, nombre: Divertia Gijón, tipo: web, region: Asturias, url: "https://www.divertia.gijon.es/"}
 - {id: emulsa, nombre: Emulsa Gijón, tipo: web, region: Asturias, url: "https://www.emulsa.org/", verificar_ssl: false}
 - {id: uniovi, nombre: Universidad de Oviedo, tipo: web, region: Asturias, url: "https://www.uniovi.es/", excluir: "-Bolsa \\d{4}-\\d+|profesorado|\\bPDI\\b"}
